@@ -43,8 +43,8 @@ extension UIImage: DiskStorable {
         return data
     }
     
-    public static func fromDiskData(_ data: Data) throws -> UIImage {
-        guard let image = UIImage(data: data) else {
+    public static func fromDiskData(_ data: Data) throws -> Self {
+        guard let image = Self(data: data) else {
             throw DiskStorageError.imageConversionFailed
         }
         return image

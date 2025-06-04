@@ -394,7 +394,7 @@ public struct ORMJoinClause: Sendable {
 
 /// Backward compatibility alias
 @available(*, deprecated, renamed: "ORMQueryBuilder")
-public typealias QueryBuilder<T> = ORMQueryBuilder<T> where T: ORMTable
+public typealias QueryBuilder<T: ORMTable> = ORMQueryBuilder<T>
 
 /// Backward compatibility alias
 @available(*, deprecated, renamed: "ORMJoinClause")

@@ -205,7 +205,7 @@ public actor RelationshipManager {
         let ownerIdValue = owner.id
         
         let query = QueryBuilder<Related>()
-            .where(config.foreignKey, .equal, ownerIdValue as? SQLiteConvertible)
+            .where(config.foreignKey, ComparisonOperator.equal, ownerIdValue as? SQLiteConvertible)
         
         return await repository.findAll(query: query)
     }
@@ -219,7 +219,7 @@ public actor RelationshipManager {
         let ownerIdValue = owner.id
         
         let query = QueryBuilder<Related>()
-            .where(config.foreignKey, .equal, ownerIdValue as? SQLiteConvertible)
+            .where(config.foreignKey, ComparisonOperator.equal, ownerIdValue as? SQLiteConvertible)
             .limit(1)
         
         let result = await repository.findAll(query: query)
