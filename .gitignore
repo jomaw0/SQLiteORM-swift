@@ -92,3 +92,6 @@ iOSInjectionProject/
 # IDE Settings
 .vscode/
 .swiftpm/
+
+# AI Assistant Configuration
+CLAUDE.md

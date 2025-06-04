@@ -1,4 +1,5 @@
 import Foundation
+@preconcurrency import Combine
 
 /// Main ORM manager that provides access to all database operations
 /// Uses actor pattern for thread-safe concurrent access
@@ -11,6 +12,10 @@ public actor ORM {
     
     /// Repository cache
     private var repositories: [String: Any] = [:]
+    
+    /// Change notifier for reactive subscriptions
+    @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+    public let changeNotifier = ChangeNotifier()
     
     /// Initialize ORM with database path
     /// - Parameters:
@@ -43,7 +48,13 @@ public actor ORM {
             return cached
         }
         
-        let repository = Repository<T>(database: database)
+        let repository: Repository<T>
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            repository = Repository<T>(database: database, changeNotifier: changeNotifier)
+        } else {
+            // For older platforms, create a dummy change notifier
+            repository = Repository<T>(database: database, changeNotifier: ChangeNotifier())
+        }
         repositories[key] = repository
         return repository
     }

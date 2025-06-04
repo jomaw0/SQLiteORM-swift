@@ -1,4 +1,5 @@
 import Foundation
+@preconcurrency import Combine
 
 /// Repository pattern implementation for database operations
 /// Provides high-level, type-safe methods for CRUD operations
@@ -12,10 +13,16 @@ public actor Repository<T: Model> {
     /// The model decoder for converting database values to models
     private let decoder = ModelDecoder()
     
+    /// The change notifier for reactive subscriptions
+    private let changeNotifier: ChangeNotifier
+    
     /// Initialize a new repository
-    /// - Parameter database: The database connection to use
-    public init(database: SQLiteDatabase) {
+    /// - Parameters:
+    ///   - database: The database connection to use
+    ///   - changeNotifier: The change notification system
+    public init(database: SQLiteDatabase, changeNotifier: ChangeNotifier) {
         self.database = database
+        self.changeNotifier = changeNotifier
     }
     
     /// Find a model by its ID
@@ -119,6 +126,10 @@ public actor Repository<T: Model> {
                 // Convert Int64 to model's ID type
                 if let convertedId = T.IDType(String(newId)) {
                     model.id = convertedId
+                    
+                    // Notify subscribers of the change
+                    await changeNotifier.notifyChange(for: T.tableName)
+                    
                     return .success(model)
                 } else {
                     return .failure(.invalidData(reason: "Failed to convert inserted ID"))
@@ -151,11 +162,12 @@ public actor Repository<T: Model> {
             let query = QueryBuilder<T>().where("id", .equal, model.id as? SQLiteConvertible)
             let (sql, bindings) = query.buildUpdate(updates)
             
-            return await database.execute(sql, bindings: bindings).map { rowsAffected in
-                if rowsAffected == 0 {
-                    return model  // No rows updated, but not an error
+            return await database.execute(sql, bindings: bindings).flatMap { rowsAffected in
+                if rowsAffected > 0 {
+                    // Notify subscribers of the change
+                    Task { await changeNotifier.notifyChange(for: T.tableName) }
                 }
-                return model
+                return .success(model)
             }
         } catch {
             return .failure(.invalidData(reason: error.localizedDescription))
@@ -194,7 +206,13 @@ public actor Repository<T: Model> {
         let query = QueryBuilder<T>().where("id", .equal, id as? SQLiteConvertible)
         let (sql, bindings) = query.buildDelete()
         
-        return await database.execute(sql, bindings: bindings)
+        return await database.execute(sql, bindings: bindings).flatMap { rowsAffected in
+            if rowsAffected > 0 {
+                // Notify subscribers of the change
+                Task { await changeNotifier.notifyChange(for: T.tableName) }
+            }
+            return .success(rowsAffected)
+        }
     }
     
     /// Delete models matching the query
@@ -202,7 +220,13 @@ public actor Repository<T: Model> {
     /// - Returns: Result with number of rows deleted
     public func deleteWhere(query: QueryBuilder<T>) async -> ORMResult<Int> {
         let (sql, bindings) = query.buildDelete()
-        return await database.execute(sql, bindings: bindings)
+        return await database.execute(sql, bindings: bindings).flatMap { rowsAffected in
+            if rowsAffected > 0 {
+                // Notify subscribers of the change
+                Task { await changeNotifier.notifyChange(for: T.tableName) }
+            }
+            return .success(rowsAffected)
+        }
     }
     
     /// Execute a raw SQL query
@@ -255,6 +279,53 @@ public actor Repository<T: Model> {
     public func dropTable() async -> ORMResult<Void> {
         let sql = "DROP TABLE IF EXISTS \(T.tableName)"
         return await database.execute(sql).map { _ in () }
+    }
+    
+    /// Create a QueryBuilder with this repository context for fluent subscription chaining
+    /// - Returns: A QueryBuilder that can be used for subscriptions
+    @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+    public func query() -> QueryBuilderWithRepository<T> {
+        return QueryBuilderWithRepository(repository: self)
+    }
+}
+
+// MARK: - Combine Subscriptions
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+extension Repository {
+    
+    /// Subscribe to changes for all models in this repository
+    /// - Returns: An observable object that provides updated results when data changes
+    public nonisolated func subscribe() -> SimpleQuerySubscription<T> {
+        return SimpleQuerySubscription(repository: self, query: nil, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to changes for models matching a specific query
+    /// - Parameter query: The query builder to filter results
+    /// - Returns: An observable object that provides updated query results when data changes
+    public nonisolated func subscribe(query: QueryBuilder<T>) -> SimpleQuerySubscription<T> {
+        return SimpleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to changes for a single model by ID
+    /// - Parameter id: The ID of the model to monitor
+    /// - Returns: An observable object that provides the updated model when it changes
+    public nonisolated func subscribe(id: T.IDType) -> SimpleSingleQuerySubscription<T> {
+        let query = QueryBuilder<T>().where("id", .equal, id as? SQLiteConvertible)
+        return SimpleSingleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to changes for the first model matching a query
+    /// - Parameter query: The query builder to find the model
+    /// - Returns: An observable object that provides the updated model when it changes
+    public nonisolated func subscribeFirst(query: QueryBuilder<T>) -> SimpleSingleQuerySubscription<T> {
+        return SimpleSingleQuerySubscription(repository: self, query: query.limit(1), changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to the count of models matching a query
+    /// - Parameter query: Optional query builder to filter the count
+    /// - Returns: An observable object that provides updated count when data changes
+    public nonisolated func subscribeCount(query: QueryBuilder<T>? = nil) -> SimpleCountSubscription<T> {
+        return SimpleCountSubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
 }
 

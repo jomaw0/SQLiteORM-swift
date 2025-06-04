@@ -1,8 +1,9 @@
 import Foundation
+@preconcurrency import Combine
 
 /// Type-safe SQL query builder
 /// Provides a fluent interface for constructing SQL queries
-public struct QueryBuilder<T: Model> {
+public struct QueryBuilder<T: Model>: Sendable {
     private var selectColumns: [String] = ["*"]
     private var whereConditions: [WhereCondition] = []
     private var orderByColumns: [(column: String, ascending: Bool)] = []
@@ -20,10 +21,35 @@ public struct QueryBuilder<T: Model> {
         return T.columnMappings?[propertyName] ?? propertyName
     }
     
+    /// The repository associated with this query builder (for subscriptions)
+    private var repository: Repository<T>?
+    
+    /// Initialize with a repository for subscription support
+    /// - Parameter repository: The repository to use for subscriptions
+    public init(repository: Repository<T>) {
+        self.repository = repository
+    }
+    
+    /// Internal method to create a new builder with the same repository
+    private func withRepository() -> QueryBuilder {
+        var builder = self
+        builder.repository = self.repository
+        return builder
+    }
+    
     /// Select specific columns
     /// - Parameter columns: Column names to select
     /// - Returns: Updated query builder
     public func select(_ columns: String...) -> QueryBuilder {
+        var builder = self
+        builder.selectColumns = columns
+        return builder
+    }
+    
+    /// Select specific columns from array
+    /// - Parameter columns: Array of column names to select
+    /// - Returns: Updated query builder
+    public func select(_ columns: [String]) -> QueryBuilder {
         var builder = self
         builder.selectColumns = columns
         return builder
@@ -147,6 +173,15 @@ public struct QueryBuilder<T: Model> {
     /// - Parameter columns: Columns to group by
     /// - Returns: Updated query builder
     public func groupBy(_ columns: String...) -> QueryBuilder {
+        var builder = self
+        builder.groupByColumns = columns.map { mapColumnName($0) }
+        return builder
+    }
+    
+    /// Add a GROUP BY clause from array
+    /// - Parameter columns: Array of columns to group by
+    /// - Returns: Updated query builder
+    public func groupBy(_ columns: [String]) -> QueryBuilder {
         var builder = self
         builder.groupByColumns = columns.map { mapColumnName($0) }
         return builder
@@ -277,6 +312,32 @@ public struct QueryBuilder<T: Model> {
         }
         
         return (clauses.joined(separator: " AND "), bindings)
+    }
+}
+
+// MARK: - Combine Subscription Extensions
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+extension QueryBuilder {
+    
+    /// Subscribe to this query's results using the provided repository
+    /// - Parameter repository: The repository to use for the subscription
+    /// - Returns: A subscription that emits updated query results when data changes
+    public func subscribe(using repository: Repository<T>) -> SimpleQuerySubscription<T> {
+        return repository.subscribe(query: self)
+    }
+    
+    /// Subscribe to the first result of this query using the provided repository
+    /// - Parameter repository: The repository to use for the subscription
+    /// - Returns: A subscription that emits the first updated query result when data changes
+    public func subscribeFirst(using repository: Repository<T>) -> SimpleSingleQuerySubscription<T> {
+        return repository.subscribeFirst(query: self)
+    }
+    
+    /// Subscribe to the count of results for this query using the provided repository
+    /// - Parameter repository: The repository to use for the subscription
+    /// - Returns: A subscription that emits updated count when data changes
+    public func subscribeCount(using repository: Repository<T>) -> SimpleCountSubscription<T> {
+        return repository.subscribeCount(query: self)
     }
 }
 

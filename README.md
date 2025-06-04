@@ -11,6 +11,7 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 - 📦 **Zero dependencies** - uses only built-in SQLite3
 - 🔄 **Migration system** with version tracking
 - 📅 **Advanced date handling** with multiple format support
+- 🔗 **Combine integration** for reactive data subscriptions
 - 🚀 **Easy to use** - just conform to `Model` protocol
 
 ## Installation
@@ -19,7 +20,7 @@ Add SQLiteORM to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/SQLiteORM.git", from: "1.0.0")
+    .package(url: "https://github.com/jomaw0/SQLiteORM-swift.git", from: "1.0.0")
 ]
 ```
 
@@ -232,10 +233,183 @@ case .failure(let error):
 let user = result.toOptional() // Logs error and returns optional
 ```
 
+## Combine Integration (iOS 16.0+)
+
+SQLiteORM provides reactive data subscriptions using Combine, perfect for SwiftUI and reactive programming patterns.
+
+### Basic Subscriptions
+
+```swift
+import Combine
+import SwiftUI
+
+// Subscribe to all users
+let allUsersSubscription = await userRepo.subscribe()
+
+// Subscribe with a query filter
+let activeUsersSubscription = await userRepo.subscribe(
+    query: QueryBuilder<User>().where("isActive", .equal, true)
+)
+
+// Subscribe to a single user by ID
+let userSubscription = await userRepo.subscribe(id: 123)
+
+// Subscribe to count of users
+let countSubscription = await userRepo.subscribeCount()
+```
+
+### Fluent Query Subscriptions
+
+```swift
+// Method 1: Using QueryBuilder with .subscribe(using:)
+let subscription = QueryBuilder<User>()
+    .where("isActive", .equal, true)
+    .where("score", .greaterThan, 100.0)
+    .orderBy("username")
+    .limit(50)
+    .subscribe(using: userRepo)
+
+// Method 2: Using repository.query() for fluent chaining
+let subscription = await userRepo.query()
+    .where("isActive", .equal, true)
+    .whereLike("email", "%@company.com")
+    .orderBy("createdAt", ascending: false)
+    .limit(20)
+    .subscribe()
+
+// Subscribe to count with query
+let countSubscription = await userRepo.query()
+    .where("isActive", .equal, true)
+    .subscribeCount()
+
+// Subscribe to first result
+let firstUserSubscription = await userRepo.query()
+    .where("role", .equal, "admin")
+    .orderBy("lastLogin", ascending: false)
+    .subscribeFirst()
+
+// Execute queries directly (non-reactive)
+let users = await userRepo.query()
+    .where("department", .equal, "Engineering")
+    .findAll()
+
+let count = await userRepo.query()
+    .where("status", .equal, "pending")
+    .count()
+```
+
+### SwiftUI Integration
+
+```swift
+@available(iOS 16.0, *)
+struct UserListView: View {
+    @StateObject private var usersSubscription: SimpleQuerySubscription<User>
+    @StateObject private var countSubscription: SimpleCountSubscription<User>
+    
+    private let userRepository: Repository<User>
+    
+    init(userRepository: Repository<User>) async {
+        self.userRepository = userRepository
+        self._usersSubscription = StateObject(wrappedValue: userRepository.subscribe())
+        self._countSubscription = StateObject(wrappedValue: await userRepository.query()
+            .where("isActive", .equal, true)
+            .subscribeCount())
+    }
+    
+    var body: some View {
+        VStack {
+            // Display count
+            switch countSubscription.result {
+            case .success(let count):
+                Text("Total Users: \(count)")
+            case .failure(let error):
+                Text("Error: \(error)")
+            }
+            
+            // Display users
+            switch usersSubscription.result {
+            case .success(let users):
+                List(users, id: \.id) { user in
+                    Text(user.username)
+                }
+            case .failure(let error):
+                Text("Error: \(error)")
+            }
+            
+            Button("Add User") {
+                Task { await addRandomUser() }
+            }
+        }
+    }
+    
+    private func addRandomUser() async {
+        var user = User(username: "user\(Int.random(in: 1000...9999))", 
+                       email: "test@example.com", 
+                       createdAt: Date())
+        _ = await userRepository.insert(&user)
+        // UI automatically updates via subscription
+    }
+}
+```
+
+### Programmatic Usage
+
+```swift
+@available(iOS 16.0, *)
+class UserManager: ObservableObject {
+    @Published var users: [User] = []
+    @Published var userCount: Int = 0
+    
+    private var cancellables = Set<AnyCancellable>()
+    private let userRepository: Repository<User>
+    
+    init(userRepository: Repository<User>) async {
+        self.userRepository = userRepository
+        await setupSubscriptions()
+    }
+    
+    @MainActor
+    private func setupSubscriptions() async {
+        // Subscribe to all users
+        let usersSubscription = await userRepository.subscribe()
+        usersSubscription.$result
+            .compactMap { result -> [User]? in
+                if case .success(let users) = result {
+                    return users
+                }
+                return nil
+            }
+            .assign(to: \.users, on: self)
+            .store(in: &cancellables)
+        
+        // Subscribe to count
+        let countSubscription = await userRepository.subscribeCount()
+        countSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let count) = result {
+                    return count
+                }
+                return nil
+            }
+            .assign(to: \.userCount, on: self)
+            .store(in: &cancellables)
+    }
+}
+```
+
+### Key Features
+
+- **Automatic Updates**: Subscriptions automatically emit new values when data changes
+- **Type-Safe**: Full type safety with Result types for error handling
+- **Thread-Safe**: Uses actors and MainActor for proper concurrency
+- **Memory Efficient**: Proper cleanup and weak references
+- **SwiftUI Ready**: ObservableObject pattern for seamless integration
+
 ## Requirements
 
 - Swift 6.1+
 - iOS 16.0+ / macOS 13.0+ / tvOS 16.0+ / watchOS 9.0+
+- Combine integration requires iOS 16.0+ / macOS 13.0+
 
 ## License
 
