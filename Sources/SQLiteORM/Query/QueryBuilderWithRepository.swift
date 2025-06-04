@@ -3,7 +3,7 @@ import Foundation
 
 /// A QueryBuilder that has a repository context, enabling fluent subscription chaining
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
-public struct QueryBuilderWithRepository<T: Model>: Sendable {
+public struct QueryBuilderWithRepository<T: ORMTable>: Sendable {
     private let repository: Repository<T>
     private let queryBuilder: QueryBuilder<T>
     

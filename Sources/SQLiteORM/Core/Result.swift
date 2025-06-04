@@ -74,6 +74,26 @@ public enum ORMError: Error, CustomStringConvertible {
 
 /// Extension to provide convenient error handling methods
 public extension Result where Failure == ORMError {
+    /// Returns true if the result is successful
+    var isSuccess: Bool {
+        switch self {
+        case .success:
+            return true
+        case .failure:
+            return false
+        }
+    }
+    
+    /// Returns true if the result is a failure
+    var isFailure: Bool {
+        switch self {
+        case .success:
+            return false
+        case .failure:
+            return true
+        }
+    }
+    
     /// Converts Result to optional value, logging error if present
     func toOptional(logError: Bool = true) -> Success? {
         switch self {

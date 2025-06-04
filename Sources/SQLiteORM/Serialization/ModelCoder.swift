@@ -1,12 +1,12 @@
 import Foundation
 
-/// Encoder for converting Model instances to database values
+/// Encoder for converting ORMTable instances to database values
 public struct ModelEncoder {
     /// Encode a model to a dictionary of column names to SQLite values
     /// - Parameter model: The model to encode
     /// - Returns: Dictionary of column names to values
     /// - Throws: EncodingError if encoding fails
-    public func encode<T: Model>(_ model: T) throws -> [String: SQLiteValue] {
+    public func encode<T: ORMTable>(_ model: T) throws -> [String: SQLiteValue] {
         let data = try JSONEncoder().encode(model)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         
@@ -51,7 +51,7 @@ public struct ModelEncoder {
     }
 }
 
-/// Decoder for converting database values to Model instances
+/// Decoder for converting database values to ORMTable instances
 public struct ModelDecoder {
     /// Decode a model from a row dictionary
     /// - Parameters:
@@ -59,7 +59,7 @@ public struct ModelDecoder {
     ///   - row: Dictionary of column names to SQLite values
     /// - Returns: The decoded model
     /// - Throws: DecodingError if decoding fails
-    public func decode<T: Model>(_ type: T.Type, from row: [String: SQLiteValue]) throws -> T {
+    public func decode<T: ORMTable>(_ type: T.Type, from row: [String: SQLiteValue]) throws -> T {
         // Reverse column mappings
         let columnMappings = T.columnMappings ?? [:]
         let reverseMappings = Dictionary(uniqueKeysWithValues: columnMappings.map { ($1, $0) })

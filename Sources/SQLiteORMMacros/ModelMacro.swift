@@ -8,21 +8,21 @@ import SwiftDiagnostics
 @main
 struct SQLiteORMPlugin: CompilerPlugin {
     let providingMacros: [Macro.Type] = [
-        ModelMacro.self,
-        TableMacro.self,
-        ColumnMacro.self,
-        PrimaryKeyMacro.self,
-        IndexedMacro.self,
-        UniqueMacro.self,
-        BelongsToMacro.self,
-        HasManyMacro.self,
-        HasOneMacro.self,
-        ManyToManyMacro.self
+        ORMTableMacro.self,
+        ORMTableNameMacro.self,
+        ORMColumnMacro.self,
+        ORMPrimaryKeyMacro.self,
+        ORMIndexedMacro.self,
+        ORMUniqueMacro.self,
+        ORMBelongsToMacro.self,
+        ORMHasManyMacro.self,
+        ORMHasOneMacro.self,
+        ORMManyToManyMacro.self
     ]
 }
 
-/// @Model macro that generates boilerplate code for ORM models
-public struct ModelMacro: MemberMacro {
+/// @ORMTable macro that generates boilerplate code for ORM models
+public struct ORMTableMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -258,7 +258,7 @@ public struct ModelMacro: MemberMacro {
 }
 
 /// @Table macro to specify custom table name
-public struct TableMacro: MemberMacro {
+public struct ORMTableNameMacro: MemberMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingMembersOf declaration: some DeclGroupSyntax,
@@ -282,7 +282,7 @@ public struct TableMacro: MemberMacro {
 }
 
 /// @Column macro to specify custom column name
-public struct ColumnMacro: PeerMacro {
+public struct ORMColumnMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -294,7 +294,7 @@ public struct ColumnMacro: PeerMacro {
 }
 
 /// @PrimaryKey macro to mark primary key with custom type
-public struct PrimaryKeyMacro: PeerMacro {
+public struct ORMPrimaryKeyMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -306,7 +306,7 @@ public struct PrimaryKeyMacro: PeerMacro {
 }
 
 /// @Indexed macro to create database index
-public struct IndexedMacro: PeerMacro {
+public struct ORMIndexedMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -318,7 +318,7 @@ public struct IndexedMacro: PeerMacro {
 }
 
 /// @Unique macro to create unique constraint
-public struct UniqueMacro: PeerMacro {
+public struct ORMUniqueMacro: PeerMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingPeersOf declaration: some DeclSyntaxProtocol,
@@ -332,7 +332,7 @@ public struct UniqueMacro: PeerMacro {
 // MARK: - Relationship Macros
 
 /// @BelongsTo macro for defining belongs-to relationships
-public struct BelongsToMacro: AccessorMacro {
+public struct ORMBelongsToMacro: AccessorMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
@@ -380,7 +380,7 @@ public struct BelongsToMacro: AccessorMacro {
 }
 
 /// @HasMany macro for defining has-many relationships
-public struct HasManyMacro: AccessorMacro {
+public struct ORMHasManyMacro: AccessorMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
@@ -411,7 +411,7 @@ public struct HasManyMacro: AccessorMacro {
 }
 
 /// @HasOne macro for defining has-one relationships
-public struct HasOneMacro: AccessorMacro {
+public struct ORMHasOneMacro: AccessorMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
@@ -442,7 +442,7 @@ public struct HasOneMacro: AccessorMacro {
 }
 
 /// @ManyToMany macro for defining many-to-many relationships
-public struct ManyToManyMacro: AccessorMacro {
+public struct ORMManyToManyMacro: AccessorMacro {
     public static func expansion(
         of node: AttributeSyntax,
         providingAccessorsOf declaration: some DeclSyntaxProtocol,
@@ -489,3 +489,4 @@ enum MacroError: Error, CustomStringConvertible {
         }
     }
 }
+

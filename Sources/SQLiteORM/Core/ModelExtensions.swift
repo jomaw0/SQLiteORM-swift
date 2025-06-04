@@ -1,7 +1,7 @@
 import Foundation
 
-/// Extensions to Model protocol for query building
-public extension Model {
+/// Extensions to ORMTable protocol for query building
+public extension ORMTable {
     /// Create a query for this model type
     /// - Parameter orm: The ORM instance to use for execution
     /// - Returns: A new Query instance
@@ -56,7 +56,7 @@ public extension Model {
 }
 
 /// Instance methods for models
-public extension Model {
+public extension ORMTable {
     /// Save this model (insert or update)
     /// - Parameter orm: The ORM instance to use
     /// - Returns: Result containing the saved model

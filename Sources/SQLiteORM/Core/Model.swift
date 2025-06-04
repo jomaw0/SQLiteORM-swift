@@ -72,27 +72,6 @@ public protocol ORMSoftDeletable {
     var deletedAt: Date? { get set }
 }
 
-// MARK: - Backward Compatibility
-
-/// Backward compatibility alias
-@available(*, deprecated, renamed: "ORMTable")
-public typealias Model = ORMTable
-
-/// Backward compatibility alias
-@available(*, deprecated, renamed: "ORMIndex")
-public typealias Index = ORMIndex
-
-/// Backward compatibility alias
-@available(*, deprecated, renamed: "ORMUniqueConstraint")
-public typealias UniqueConstraint = ORMUniqueConstraint
-
-/// Backward compatibility alias
-@available(*, deprecated, renamed: "ORMTimestamped")
-public typealias Timestamped = ORMTimestamped
-
-/// Backward compatibility alias
-@available(*, deprecated, renamed: "ORMSoftDeletable")
-public typealias SoftDeletable = ORMSoftDeletable
 
 /// String extension for basic pluralization
 private extension String {

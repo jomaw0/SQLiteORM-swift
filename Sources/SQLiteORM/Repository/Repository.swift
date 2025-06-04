@@ -3,7 +3,7 @@ import Foundation
 
 /// Repository pattern implementation for database operations
 /// Provides high-level, type-safe methods for CRUD operations
-public actor Repository<T: Model> {
+public actor Repository<T: ORMTable> {
     /// The database connection
     private let database: SQLiteDatabase
     
@@ -410,7 +410,7 @@ extension Repository {
     ///   - model: The model instance
     ///   - config: The relationship configuration
     /// - Returns: Result containing the related model or error
-    public func loadBelongsTo<Related: Model>(
+    public func loadBelongsTo<Related: ORMTable>(
         for model: T,
         config: BelongsToConfig<Related>
     ) async -> ORMResult<Related?> {
@@ -426,7 +426,7 @@ extension Repository {
     ///   - model: The model instance
     ///   - config: The relationship configuration
     /// - Returns: Result containing the related models or error
-    public func loadHasMany<Related: Model>(
+    public func loadHasMany<Related: ORMTable>(
         for model: T,
         config: HasManyConfig<Related>
     ) async -> ORMResult<[Related]> {
@@ -442,7 +442,7 @@ extension Repository {
     ///   - model: The model instance
     ///   - config: The relationship configuration
     /// - Returns: Result containing the related model or error
-    public func loadHasOne<Related: Model>(
+    public func loadHasOne<Related: ORMTable>(
         for model: T,
         config: HasOneConfig<Related>
     ) async -> ORMResult<Related?> {
@@ -458,7 +458,7 @@ extension Repository {
     ///   - model: The model instance
     ///   - config: The relationship configuration
     /// - Returns: Result containing the related models or error
-    public func loadManyToMany<Related: Model>(
+    public func loadManyToMany<Related: ORMTable>(
         for model: T,
         config: ManyToManyConfig<Related>
     ) async -> ORMResult<[Related]> {
@@ -475,7 +475,7 @@ extension Repository {
     ///   - foreignKey: The foreign key column name
     ///   - value: The value to match
     /// - Returns: Result containing the related models or error
-    public func findRelated<Related: Model>(
+    public func findRelated<Related: ORMTable>(
         _ relatedType: Related.Type,
         foreignKey: String,
         value: T.IDType
@@ -499,7 +499,7 @@ extension Repository {
     ///   - foreignKey: The foreign key column name
     ///   - value: The value to match
     /// - Returns: Result containing the related model or error
-    public func findRelatedSingle<Related: Model>(
+    public func findRelatedSingle<Related: ORMTable>(
         _ relatedType: Related.Type,
         foreignKey: String,
         value: T.IDType

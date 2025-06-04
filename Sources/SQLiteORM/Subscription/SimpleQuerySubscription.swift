@@ -4,7 +4,7 @@ import Foundation
 /// A simple and robust Combine publisher for SQLiteORM query subscriptions
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 @MainActor
-public final class SimpleQuerySubscription<T: Model>: ObservableObject {
+public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<[T]> = .success([])
     
     private let repository: Repository<T>
@@ -56,7 +56,7 @@ public final class SimpleQuerySubscription<T: Model>: ObservableObject {
 /// A simple subscription for single model queries
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 @MainActor
-public final class SimpleSingleQuerySubscription<T: Model>: ObservableObject {
+public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<T?> = .success(nil)
     
     private let repository: Repository<T>
@@ -108,7 +108,7 @@ public final class SimpleSingleQuerySubscription<T: Model>: ObservableObject {
 /// A simple subscription for count queries
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 @MainActor
-public final class SimpleCountSubscription<T: Model>: ObservableObject {
+public final class SimpleCountSubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<Int> = .success(0)
     
     private let repository: Repository<T>

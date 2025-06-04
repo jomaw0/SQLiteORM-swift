@@ -2,6 +2,8 @@
 
 A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 
+> **Note**: This is a prerelease version with a clean, modern API. All legacy compatibility has been removed in favor of the new ORM-prefixed naming convention.
+
 ## Features
 
 - 🔒 **Type-safe** SQL queries with compile-time validation
@@ -12,7 +14,8 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 - 🔄 **Migration system** with version tracking
 - 📅 **Advanced date handling** with multiple format support
 - 🔗 **Combine integration** for reactive data subscriptions
-- 🚀 **Easy to use** - just conform to `ORMTable` protocol
+- 🚀 **Easy to use** - just conform to `ORMTable` protocol and use `@ORMTable` macro
+- 🎨 **Clean API** - modern ORM-prefixed naming convention
 
 ## Installation
 
@@ -23,6 +26,16 @@ dependencies: [
     .package(url: "https://github.com/jomaw0/SQLiteORM-swift.git", from: "1.0.0")
 ]
 ```
+
+## What's New
+
+This prerelease version features a completely modernized API:
+
+- **ORM-Prefixed Types**: All types now use the `ORM` prefix (`ORMTable`, `ORMIndex`, `ORMQueryBuilder`, etc.)
+- **ORM-Prefixed Macros**: All macros now use the `ORM` prefix (`@ORMTable`, `@ORMColumn`, `@ORMIndexed`, etc.) 
+- **Clean Initialization**: Simple, modern initialization methods with sensible defaults
+- **No Legacy Code**: All backward compatibility has been removed for a cleaner, more maintainable codebase
+- **Better Defaults**: Default database is now `app.sqlite` for better naming conventions
 
 ## Quick Start
 
@@ -43,12 +56,30 @@ struct User: ORMTable {
 }
 ```
 
-### Basic Usage
+### Database Initialization
+
+SQLiteORM provides multiple ways to initialize your database:
 
 ```swift
-// Initialize ORM
-let orm = ORM(path: "database.sqlite")
+// 1. Default database in Documents directory (creates app.sqlite)
+let orm = ORM()
+
+// 2. Named database with automatic .sqlite extension
+let orm = ORM(.relative("myapp"))
+
+// 3. In-memory database for testing
+let orm = ORM(.memory)
+
+// 4. Convenience functions
+let orm = createFileORM(filename: "myapp") // Creates myapp.sqlite in Documents
+let orm = createInMemoryORM() // For testing
+
 await orm.open()
+```
+
+### Basic CRUD Operations
+
+```swift
 
 // Get repository
 let userRepo = await orm.repository(for: User.self)
@@ -59,6 +90,10 @@ await userRepo.createTable()
 // Insert
 var user = User(username: "john", email: "john@example.com", createdAt: Date())
 let insertResult = await userRepo.insert(&user)
+if case .failure(let error) = insertResult {
+    print("Insert failed with error: \(error)")
+    return
+}
 
 // Find by ID
 let findResult = await userRepo.find(id: user.id)
@@ -76,6 +111,32 @@ let query = ORMQueryBuilder<User>()
     .limit(10)
 
 let activeUsers = await userRepo.findAll(query: query)
+```
+
+### Convenient Table Creation
+
+SQLiteORM provides several convenient ways to create multiple tables:
+
+```swift
+// 1. Variadic method for multiple tables
+await orm.createTables(User.self, Post.self, Comment.self)
+
+// 2. Open database and create tables in one step
+await orm.openAndCreateTables(User.self, Post.self, Comment.self)
+
+// 3. One-liner for in-memory database with tables
+let orm = await createInMemoryORMWithTables(User.self, Post.self)
+
+// 4. One-liner for file database with tables
+let orm = await createFileORMWithTables("myapp", User.self, Post.self, Comment.self)
+
+// All methods return ORMResult for proper error handling
+switch await orm.openAndCreateTables(User.self, Post.self) {
+case .success():
+    print("Database ready!")
+case .failure(let error):
+    print("Setup failed: \(error)")
+}
 ```
 
 ## Advanced Features
@@ -195,7 +256,6 @@ let query = await orm.query(User.self)
 #### Traditional Query Builder
 
 ```swift
-// Still supported for compatibility  
 let query = ORMQueryBuilder<User>()
     .where("createdAt", .greaterThan, Date().addingTimeInterval(-86400))
     .whereIn("status", ["active", "pending"])
@@ -404,6 +464,33 @@ class UserManager: ObservableObject {
 - **Thread-Safe**: Uses actors and MainActor for proper concurrency
 - **Memory Efficient**: Proper cleanup and weak references
 - **SwiftUI Ready**: ObservableObject pattern for seamless integration
+
+## API Reference
+
+### Core Types
+
+- `ORMTable` - Protocol for database tables
+- `ORMQueryBuilder<T>` - Type-safe query builder  
+- `ORMResult<T>` - Result type alias for `Result<T, ORMError>`
+- `ORMIndex` - Database index definition
+- `ORMUniqueConstraint` - Unique constraint definition
+
+### Macros
+
+- `@ORMTable` - Generates boilerplate for table conformance
+- `@ORMTableName("name")` - Custom table name
+- `@ORMColumn("name")` - Custom column name
+- `@ORMPrimaryKey` - Mark primary key property
+- `@ORMIndexed` - Create database index
+- `@ORMUnique` - Add unique constraint
+
+### Initialization
+
+- `ORM()` - Default database (app.sqlite in Documents)
+- `ORM(.relative("name"))` - Named database file
+- `ORM(.memory)` - In-memory database
+- `createFileORM(filename:)` - Convenience function
+- `createInMemoryORM()` - Convenience function
 
 ## Requirements
 

@@ -7,7 +7,7 @@ public enum SortOrder: String, Sendable {
 }
 
 /// Type-safe query builder with predicate support
-public struct Query<T: Model>: Sendable {
+public struct Query<T: ORMTable>: Sendable {
     /// The model type this query operates on
     public let modelType: T.Type
     

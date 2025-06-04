@@ -5,7 +5,7 @@ public struct SchemaBuilder {
     /// Generate CREATE TABLE statement for a model
     /// - Parameter type: The model type
     /// - Returns: SQL CREATE TABLE statement
-    public static func createTable<T: Model>(for type: T.Type) -> String {
+    public static func createTable<T: ORMTable>(for type: T.Type) -> String {
         var sql = "CREATE TABLE IF NOT EXISTS \(T.tableName) ("
         var columns: [String] = []
         
@@ -63,7 +63,7 @@ public struct SchemaBuilder {
     /// Generate CREATE INDEX statements for a model
     /// - Parameter type: The model type
     /// - Returns: Array of SQL CREATE INDEX statements
-    public static func createIndexes<T: Model>(for type: T.Type) -> [String] {
+    public static func createIndexes<T: ORMTable>(for type: T.Type) -> [String] {
         T.indexes.map { index in
             let unique = index.unique ? "UNIQUE " : ""
             return "CREATE \(unique)INDEX IF NOT EXISTS \(index.name) ON \(T.tableName) (\(index.columns.joined(separator: ", ")))"

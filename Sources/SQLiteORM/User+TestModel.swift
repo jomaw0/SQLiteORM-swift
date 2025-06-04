@@ -1,7 +1,8 @@
 import Foundation
 
 /// Example model for testing and documentation
-public struct User: Model {
+@ORMTable
+public struct User: ORMTable {
     public typealias IDType = Int
     
     public var id: Int = 0
@@ -25,16 +26,16 @@ public struct User: Model {
         ]
     }
     
-    public static var indexes: [Index] {
+    public static var indexes: [ORMIndex] {
         [
-            Index(name: "idx_users_email", columns: ["email_address"]),
-            Index(name: "idx_users_createdat", columns: ["createdAt"])
+            ORMIndex(name: "idx_users_email", columns: ["email_address"]),
+            ORMIndex(name: "idx_users_createdat", columns: ["createdAt"])
         ]
     }
     
-    public static var uniqueConstraints: [UniqueConstraint] {
+    public static var uniqueConstraints: [ORMUniqueConstraint] {
         [
-            UniqueConstraint(name: "uniq_users_username", columns: ["user_name"])
+            ORMUniqueConstraint(name: "uniq_users_username", columns: ["user_name"])
         ]
     }
     

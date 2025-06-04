@@ -23,8 +23,6 @@ let package = Package(
     dependencies: [
         // Swift Syntax for macro implementation
         .package(url: "https://github.com/swiftlang/swift-syntax.git", from: "600.0.0"),
-        // Swift Testing framework
-        .package(url: "https://github.com/apple/swift-testing.git", from: "0.4.0"),
     ],
     targets: [
         // Main library target
@@ -47,8 +45,7 @@ let package = Package(
         .testTarget(
             name: "SQLiteORMTests",
             dependencies: [
-                "SQLiteORM",
-                .product(name: "Testing", package: "swift-testing")
+                "SQLiteORM"
             ]
         ),
     ]

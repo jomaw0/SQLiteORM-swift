@@ -89,7 +89,7 @@ public struct DiskStored<T: DiskStorable & Codable> {
 }
 
 /// Protocol for models that support disk storage
-public protocol DiskStorageCapable: Model {
+public protocol DiskStorageCapable: ORMTable {
     /// The disk storage manager for this model
     static var diskStorageManager: DiskStorageManager? { get set }
     

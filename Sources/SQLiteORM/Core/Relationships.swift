@@ -3,7 +3,7 @@ import Foundation
 // MARK: - Relationship Types
 
 /// Protocol for models that support lazy loading of relationships
-public protocol RelationshipCapable: Model {
+public protocol RelationshipCapable: ORMTable {
     /// Load all relationships for this model instance
     mutating func loadRelationships() async throws
 }
@@ -20,7 +20,7 @@ public extension RelationshipCapable {
 
 /// Property wrapper for lazy-loaded relationships
 @propertyWrapper
-public struct LazyRelationship<T: Model> {
+public struct LazyRelationship<T: ORMTable> {
     private var _value: T?
     private let loadFunction: () async throws -> T?
     
@@ -69,7 +69,7 @@ public struct LazyRelationship<T: Model> {
 
 /// Property wrapper for lazy-loaded array relationships
 @propertyWrapper
-public struct LazyRelationshipArray<T: Model> {
+public struct LazyRelationshipArray<T: ORMTable> {
     private var _value: [T]?
     private let loadFunction: () async throws -> [T]
     
@@ -119,7 +119,7 @@ public struct LazyRelationshipArray<T: Model> {
 // MARK: - Relationship Configuration
 
 /// Configuration for a belongs-to relationship
-public struct BelongsToConfig<T: Model>: Sendable {
+public struct BelongsToConfig<T: ORMTable>: Sendable {
     public let relatedType: T.Type
     public let foreignKey: String
     
@@ -130,7 +130,7 @@ public struct BelongsToConfig<T: Model>: Sendable {
 }
 
 /// Configuration for a has-many relationship
-public struct HasManyConfig<T: Model>: Sendable {
+public struct HasManyConfig<T: ORMTable>: Sendable {
     public let relatedType: T.Type
     public let foreignKey: String
     
@@ -141,7 +141,7 @@ public struct HasManyConfig<T: Model>: Sendable {
 }
 
 /// Configuration for a has-one relationship
-public struct HasOneConfig<T: Model>: Sendable {
+public struct HasOneConfig<T: ORMTable>: Sendable {
     public let relatedType: T.Type
     public let foreignKey: String
     
@@ -152,7 +152,7 @@ public struct HasOneConfig<T: Model>: Sendable {
 }
 
 /// Configuration for a many-to-many relationship
-public struct ManyToManyConfig<T: Model>: Sendable {
+public struct ManyToManyConfig<T: ORMTable>: Sendable {
     public let relatedType: T.Type
     public let junctionTable: String
     public let localKey: String
@@ -177,7 +177,7 @@ public actor RelationshipManager {
     }
     
     /// Load a belongs-to relationship
-    public func loadBelongsTo<Owner: Model, Related: Model>(
+    public func loadBelongsTo<Owner: ORMTable, Related: ORMTable>(
         for owner: Owner,
         config: BelongsToConfig<Related>
     ) async -> ORMResult<Related?> {
@@ -197,7 +197,7 @@ public actor RelationshipManager {
     }
     
     /// Load a has-many relationship
-    public func loadHasMany<Owner: Model, Related: Model>(
+    public func loadHasMany<Owner: ORMTable, Related: ORMTable>(
         for owner: Owner,
         config: HasManyConfig<Related>
     ) async -> ORMResult<[Related]> {
@@ -211,7 +211,7 @@ public actor RelationshipManager {
     }
     
     /// Load a has-one relationship
-    public func loadHasOne<Owner: Model, Related: Model>(
+    public func loadHasOne<Owner: ORMTable, Related: ORMTable>(
         for owner: Owner,
         config: HasOneConfig<Related>
     ) async -> ORMResult<Related?> {
@@ -227,7 +227,7 @@ public actor RelationshipManager {
     }
     
     /// Load a many-to-many relationship
-    public func loadManyToMany<Owner: Model, Related: Model>(
+    public func loadManyToMany<Owner: ORMTable, Related: ORMTable>(
         for owner: Owner,
         config: ManyToManyConfig<Related>
     ) async -> ORMResult<[Related]> {

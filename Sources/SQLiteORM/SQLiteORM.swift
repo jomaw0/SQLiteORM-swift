@@ -44,7 +44,7 @@
 /// let orm = createFileORM(filename: "app.sqlite", enableDiskStorage: true)
 /// 
 /// // Implement DiskStorageCapable in your models
-/// struct Document: Model, DiskStorageCapable {
+/// struct Document: ORMTable, DiskStorageCapable {
 ///     var id: Int = 0
 ///     var title: String
 ///     var largeData: Data?
