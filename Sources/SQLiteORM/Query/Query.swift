@@ -48,6 +48,11 @@ public struct Query<T: Model>: Sendable {
         self.repository = repository
     }
     
+    /// Maps property name to actual column name using columnMappings
+    private func mapColumnName(_ propertyName: String) -> String {
+        return T.columnMappings?[propertyName] ?? propertyName
+    }
+    
     /// Internal init for repository-based queries
     internal init(modelType: T.Type, repository: Repository<T>) {
         self.modelType = modelType
@@ -72,7 +77,8 @@ public struct Query<T: Model>: Sendable {
     /// Add an ORDER BY clause
     public func orderBy(_ column: String, _ order: SortOrder = .ascending) -> Query {
         var query = self
-        query.orderByClauses.append((column: column, order: order))
+        let mappedColumn = mapColumnName(column)
+        query.orderByClauses.append((column: mappedColumn, order: order))
         return query
     }
     
@@ -93,7 +99,7 @@ public struct Query<T: Model>: Sendable {
     /// Add GROUP BY columns
     public func groupBy(_ columns: String...) -> Query {
         var query = self
-        query.groupByColumns = columns
+        query.groupByColumns = columns.map { mapColumnName($0) }
         return query
     }
     
@@ -174,7 +180,7 @@ public struct Query<T: Model>: Sendable {
         
         // Add WHERE clause
         if let predicate = predicate {
-            let (whereSQL, whereBindings) = predicate.buildSQL()
+            let (whereSQL, whereBindings) = predicate.buildSQL(columnMapper: mapColumnName)
             sql += " WHERE \(whereSQL)"
             bindings.append(contentsOf: whereBindings)
         }
@@ -186,7 +192,7 @@ public struct Query<T: Model>: Sendable {
         
         // Add HAVING clause
         if let havingPredicate = havingPredicate {
-            let (havingSQL, havingBindings) = havingPredicate.buildSQL()
+            let (havingSQL, havingBindings) = havingPredicate.buildSQL(columnMapper: mapColumnName)
             sql += " HAVING \(havingSQL)"
             bindings.append(contentsOf: havingBindings)
         }

@@ -15,6 +15,11 @@ public struct QueryBuilder<T: Model> {
     /// Initialize a new query builder
     public init() {}
     
+    /// Maps property name to actual column name using columnMappings
+    private func mapColumnName(_ propertyName: String) -> String {
+        return T.columnMappings?[propertyName] ?? propertyName
+    }
+    
     /// Select specific columns
     /// - Parameter columns: Column names to select
     /// - Returns: Updated query builder
@@ -32,7 +37,8 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func `where`(_ column: String, _ op: ComparisonOperator, _ value: SQLiteConvertible?) -> QueryBuilder {
         var builder = self
-        builder.whereConditions.append(WhereCondition(column: column, operator: op, value: value?.sqliteValue ?? .null))
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: op, value: value?.sqliteValue ?? .null))
         return builder
     }
     
@@ -43,7 +49,8 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func whereIn(_ column: String, _ values: [SQLiteConvertible]) -> QueryBuilder {
         var builder = self
-        builder.whereConditions.append(WhereCondition(column: column, operator: .in, value: .null, values: values.map { $0.sqliteValue }))
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .in, value: .null, values: values.map { $0.sqliteValue }))
         return builder
     }
     
@@ -54,7 +61,8 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func whereNotIn(_ column: String, _ values: [SQLiteConvertible]) -> QueryBuilder {
         var builder = self
-        builder.whereConditions.append(WhereCondition(column: column, operator: .notIn, value: .null, values: values.map { $0.sqliteValue }))
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .notIn, value: .null, values: values.map { $0.sqliteValue }))
         return builder
     }
     
@@ -66,7 +74,8 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func whereBetween(_ column: String, _ min: SQLiteConvertible, _ max: SQLiteConvertible) -> QueryBuilder {
         var builder = self
-        builder.whereConditions.append(WhereCondition(column: column, operator: .between, value: min.sqliteValue, secondValue: max.sqliteValue))
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .between, value: min.sqliteValue, secondValue: max.sqliteValue))
         return builder
     }
     
@@ -77,7 +86,8 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func whereLike(_ column: String, _ pattern: String) -> QueryBuilder {
         var builder = self
-        builder.whereConditions.append(WhereCondition(column: column, operator: .like, value: .text(pattern)))
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .like, value: .text(pattern)))
         return builder
     }
     
@@ -88,7 +98,8 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func orderBy(_ column: String, ascending: Bool = true) -> QueryBuilder {
         var builder = self
-        builder.orderByColumns.append((column: column, ascending: ascending))
+        let mappedColumn = mapColumnName(column)
+        builder.orderByColumns.append((column: mappedColumn, ascending: ascending))
         return builder
     }
     
@@ -137,7 +148,7 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func groupBy(_ columns: String...) -> QueryBuilder {
         var builder = self
-        builder.groupByColumns = columns
+        builder.groupByColumns = columns.map { mapColumnName($0) }
         return builder
     }
     
@@ -149,7 +160,8 @@ public struct QueryBuilder<T: Model> {
     /// - Returns: Updated query builder
     public func having(_ column: String, _ op: ComparisonOperator, _ value: SQLiteConvertible) -> QueryBuilder {
         var builder = self
-        builder.havingConditions.append(WhereCondition(column: column, operator: op, value: value.sqliteValue))
+        let mappedColumn = mapColumnName(column)
+        builder.havingConditions.append(WhereCondition(column: mappedColumn, operator: op, value: value.sqliteValue))
         return builder
     }
     
@@ -224,7 +236,7 @@ public struct QueryBuilder<T: Model> {
         var sql = "UPDATE \(T.tableName) SET "
         var bindings: [SQLiteValue] = []
         
-        let setClauses = updates.map { key, _ in "\(key) = ?" }
+        let setClauses = updates.map { key, _ in "\(mapColumnName(key)) = ?" }
         sql += setClauses.joined(separator: ", ")
         
         bindings.append(contentsOf: updates.values.map { $0.sqliteValue })

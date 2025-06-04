@@ -102,48 +102,61 @@ extension Predicate {
     /// Build SQL WHERE clause from predicate
     /// - Returns: Tuple of SQL string and bindings
     func buildSQL() -> (sql: String, bindings: [SQLiteValue]) {
+        return buildSQL(columnMapper: { $0 })
+    }
+    
+    /// Build SQL WHERE clause from predicate with column mapping
+    /// - Parameter columnMapper: Function to map property names to column names
+    /// - Returns: Tuple of SQL string and bindings
+    func buildSQL(columnMapper: (String) -> String) -> (sql: String, bindings: [SQLiteValue]) {
         switch self {
         case .column(let name, let op, let value):
+            let mappedName = columnMapper(name)
             switch op {
             case .isNull:
-                return ("\(name) IS NULL", [])
+                return ("\(mappedName) IS NULL", [])
             case .isNotNull:
-                return ("\(name) IS NOT NULL", [])
+                return ("\(mappedName) IS NOT NULL", [])
             default:
-                return ("\(name) \(op.rawValue) ?", [value])
+                return ("\(mappedName) \(op.rawValue) ?", [value])
             }
             
         case .isNull(let name):
-            return ("\(name) IS NULL", [])
+            let mappedName = columnMapper(name)
+            return ("\(mappedName) IS NULL", [])
             
         case .isNotNull(let name):
-            return ("\(name) IS NOT NULL", [])
+            let mappedName = columnMapper(name)
+            return ("\(mappedName) IS NOT NULL", [])
             
         case .in(let name, let values):
+            let mappedName = columnMapper(name)
             let placeholders = Array(repeating: "?", count: values.count).joined(separator: ", ")
-            return ("\(name) IN (\(placeholders))", values)
+            return ("\(mappedName) IN (\(placeholders))", values)
             
         case .notIn(let name, let values):
+            let mappedName = columnMapper(name)
             let placeholders = Array(repeating: "?", count: values.count).joined(separator: ", ")
-            return ("\(name) NOT IN (\(placeholders))", values)
+            return ("\(mappedName) NOT IN (\(placeholders))", values)
             
         case .between(let name, let min, let max):
-            return ("\(name) BETWEEN ? AND ?", [min, max])
+            let mappedName = columnMapper(name)
+            return ("\(mappedName) BETWEEN ? AND ?", [min, max])
             
         case .and(let predicates):
-            let parts = predicates.map { $0.buildSQL() }
+            let parts = predicates.map { $0.buildSQL(columnMapper: columnMapper) }
             let sql = parts.map { "(\($0.sql))" }.joined(separator: " AND ")
             let bindings = parts.flatMap { $0.bindings }
             return (sql, bindings)
             
         case .or(let predicates):
-            let parts = predicates.map { $0.buildSQL() }
+            let parts = predicates.map { $0.buildSQL(columnMapper: columnMapper) }
             let sql = parts.map { "(\($0.sql))" }.joined(separator: " OR ")
             let bindings = parts.flatMap { $0.bindings }
             return (sql, bindings)
             
         case .not(let predicate):
-            let (sql, bindings) = predicate.buildSQL()
+            let (sql, bindings) = predicate.buildSQL(columnMapper: columnMapper)
             return ("NOT (\(sql))", bindings)
             
         case .raw(let sql, let bindings):
