@@ -104,10 +104,11 @@ public actor Repository<T: Model> {
                 insertValues.removeValue(forKey: "id")
             }
             
-            let columns = insertValues.keys.joined(separator: ", ")
-            let placeholders = Array(repeating: "?", count: insertValues.count).joined(separator: ", ")
+            let sortedKeys = insertValues.keys.sorted()
+            let columns = sortedKeys.joined(separator: ", ")
+            let placeholders = Array(repeating: "?", count: sortedKeys.count).joined(separator: ", ")
             let sql = "INSERT INTO \(T.tableName) (\(columns)) VALUES (\(placeholders))"
-            let bindings = Array(insertValues.values)
+            let bindings = sortedKeys.map { insertValues[$0]! }
             
             let executeResult = await database.execute(sql, bindings: bindings)
             switch executeResult {

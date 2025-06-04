@@ -236,10 +236,11 @@ public struct QueryBuilder<T: Model> {
         var sql = "UPDATE \(T.tableName) SET "
         var bindings: [SQLiteValue] = []
         
-        let setClauses = updates.map { key, _ in "\(mapColumnName(key)) = ?" }
+        let sortedKeys = updates.keys.sorted()
+        let setClauses = sortedKeys.map { key in "\(mapColumnName(key)) = ?" }
         sql += setClauses.joined(separator: ", ")
         
-        bindings.append(contentsOf: updates.values.map { $0.sqliteValue })
+        bindings.append(contentsOf: sortedKeys.map { updates[$0]!.sqliteValue })
         
         if !whereConditions.isEmpty {
             let (whereClause, whereBindings) = buildWhereClause(whereConditions)

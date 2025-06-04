@@ -24,7 +24,7 @@ public enum SQLiteValue: Equatable, Sendable {
         case .real(let value):
             return sqlite3_bind_double(statement, index, value)
         case .text(let value):
-            return sqlite3_bind_text(statement, index, value, -1, nil)
+            return sqlite3_bind_text(statement, index, value, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
         case .blob(let data):
             return data.withUnsafeBytes { bytes in
                 sqlite3_bind_blob(statement, index, bytes.baseAddress, Int32(data.count), nil)

@@ -68,7 +68,22 @@ public struct ModelDecoder {
         
         for (columnName, value) in row {
             let propertyName = reverseMappings[columnName] ?? columnName
-            jsonDict[propertyName] = convertFromSQLiteValue(value)
+            let convertedValue = convertFromSQLiteValue(value)
+            
+            // Handle boolean conversion: if the value is 0 or 1, and this might be a boolean field
+            // we need to check if the model expects a boolean for this property
+            if case .integer(let intValue) = value, (intValue == 0 || intValue == 1) {
+                // Try to infer if this should be a boolean by checking common boolean field names
+                let booleanFieldNames = ["isactive", "active", "enabled", "disabled", "deleted", "visible", "hidden"]
+                let lowercasedProperty = propertyName.lowercased()
+                if booleanFieldNames.contains(lowercasedProperty) || lowercasedProperty.hasPrefix("is") {
+                    jsonDict[propertyName] = intValue == 1
+                } else {
+                    jsonDict[propertyName] = convertedValue
+                }
+            } else {
+                jsonDict[propertyName] = convertedValue
+            }
         }
         
         let jsonData = try JSONSerialization.data(withJSONObject: jsonDict)

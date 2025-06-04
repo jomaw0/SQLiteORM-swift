@@ -87,9 +87,19 @@ public struct SchemaBuilder {
             // Check if it's an optional type
             let mirror = Mirror(reflecting: value)
             if mirror.displayStyle == .optional {
-                // Get the wrapped type
-                if let child = mirror.children.first {
-                    return sqlType(for: child.value)
+                // For optional types, we need to determine the wrapped type
+                // based on the Swift type name, not the runtime value
+                let typeName = String(describing: type(of: value))
+                if typeName.contains("Date") {
+                    return "REAL"
+                } else if typeName.contains("Data") {
+                    return "BLOB"
+                } else if typeName.contains("Int") || typeName.contains("Bool") {
+                    return "INTEGER"
+                } else if typeName.contains("Double") || typeName.contains("Float") {
+                    return "REAL"
+                } else {
+                    return "TEXT"
                 }
             }
             return "TEXT"  // Default to TEXT
