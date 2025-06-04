@@ -19,15 +19,20 @@ public actor Repository<T: Model> {
     /// Optional disk storage manager for large data objects
     private let diskStorageManager: DiskStorageManager?
     
+    /// Optional relationship manager for lazy loading
+    private let relationshipManager: RelationshipManager?
+    
     /// Initialize a new repository
     /// - Parameters:
     ///   - database: The database connection to use
     ///   - changeNotifier: The change notification system
     ///   - diskStorageManager: Optional disk storage manager for large objects
-    public init(database: SQLiteDatabase, changeNotifier: ChangeNotifier, diskStorageManager: DiskStorageManager? = nil) {
+    ///   - relationshipManager: Optional relationship manager for lazy loading
+    public init(database: SQLiteDatabase, changeNotifier: ChangeNotifier, diskStorageManager: DiskStorageManager? = nil, relationshipManager: RelationshipManager? = nil) {
         self.database = database
         self.changeNotifier = changeNotifier
         self.diskStorageManager = diskStorageManager
+        self.relationshipManager = relationshipManager
     }
     
     /// Find a model by its ID
@@ -394,6 +399,124 @@ extension Repository {
         // For now, skip disk storage loading as it requires more integration
         // This feature will be fully implemented in a future update
         return
+    }
+}
+
+// MARK: - Relationship Methods
+
+extension Repository {
+    /// Load a belongs-to relationship for a model
+    /// - Parameters:
+    ///   - model: The model instance
+    ///   - config: The relationship configuration
+    /// - Returns: Result containing the related model or error
+    public func loadBelongsTo<Related: Model>(
+        for model: T,
+        config: BelongsToConfig<Related>
+    ) async -> ORMResult<Related?> {
+        guard let manager = relationshipManager else {
+            return .failure(.notFound(entity: "RelationshipManager", id: ""))
+        }
+        
+        return await manager.loadBelongsTo(for: model, config: config)
+    }
+    
+    /// Load a has-many relationship for a model
+    /// - Parameters:
+    ///   - model: The model instance
+    ///   - config: The relationship configuration
+    /// - Returns: Result containing the related models or error
+    public func loadHasMany<Related: Model>(
+        for model: T,
+        config: HasManyConfig<Related>
+    ) async -> ORMResult<[Related]> {
+        guard let manager = relationshipManager else {
+            return .failure(.notFound(entity: "RelationshipManager", id: ""))
+        }
+        
+        return await manager.loadHasMany(for: model, config: config)
+    }
+    
+    /// Load a has-one relationship for a model
+    /// - Parameters:
+    ///   - model: The model instance
+    ///   - config: The relationship configuration
+    /// - Returns: Result containing the related model or error
+    public func loadHasOne<Related: Model>(
+        for model: T,
+        config: HasOneConfig<Related>
+    ) async -> ORMResult<Related?> {
+        guard let manager = relationshipManager else {
+            return .failure(.notFound(entity: "RelationshipManager", id: ""))
+        }
+        
+        return await manager.loadHasOne(for: model, config: config)
+    }
+    
+    /// Load a many-to-many relationship for a model
+    /// - Parameters:
+    ///   - model: The model instance
+    ///   - config: The relationship configuration
+    /// - Returns: Result containing the related models or error
+    public func loadManyToMany<Related: Model>(
+        for model: T,
+        config: ManyToManyConfig<Related>
+    ) async -> ORMResult<[Related]> {
+        guard let manager = relationshipManager else {
+            return .failure(.notFound(entity: "RelationshipManager", id: ""))
+        }
+        
+        return await manager.loadManyToMany(for: model, config: config)
+    }
+    
+    /// Find related models using a foreign key
+    /// - Parameters:
+    ///   - relatedType: The type of related models to find
+    ///   - foreignKey: The foreign key column name
+    ///   - value: The value to match
+    /// - Returns: Result containing the related models or error
+    public func findRelated<Related: Model>(
+        _ relatedType: Related.Type,
+        foreignKey: String,
+        value: T.IDType
+    ) async -> ORMResult<[Related]> {
+        let relatedRepository = Repository<Related>(
+            database: database,
+            changeNotifier: changeNotifier,
+            diskStorageManager: diskStorageManager,
+            relationshipManager: relationshipManager
+        )
+        
+        let query = QueryBuilder<Related>()
+            .where(foreignKey, .equal, value as? SQLiteConvertible)
+        
+        return await relatedRepository.findAll(query: query)
+    }
+    
+    /// Find a single related model using a foreign key
+    /// - Parameters:
+    ///   - relatedType: The type of related model to find
+    ///   - foreignKey: The foreign key column name
+    ///   - value: The value to match
+    /// - Returns: Result containing the related model or error
+    public func findRelatedSingle<Related: Model>(
+        _ relatedType: Related.Type,
+        foreignKey: String,
+        value: T.IDType
+    ) async -> ORMResult<Related?> {
+        let relatedRepository = Repository<Related>(
+            database: database,
+            changeNotifier: changeNotifier,
+            diskStorageManager: diskStorageManager,
+            relationshipManager: relationshipManager
+        )
+        
+        let query = QueryBuilder<Related>()
+            .where(foreignKey, .equal, value as? SQLiteConvertible)
+            .limit(1)
+        
+        let result = await relatedRepository.findAll(query: query)
+        return result.map { $0.first }
     }
 }
 

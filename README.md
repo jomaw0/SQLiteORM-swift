@@ -12,7 +12,7 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 - 🔄 **Migration system** with version tracking
 - 📅 **Advanced date handling** with multiple format support
 - 🔗 **Combine integration** for reactive data subscriptions
-- 🚀 **Easy to use** - just conform to `Model` protocol
+- 🚀 **Easy to use** - just conform to `ORMTable` protocol
 
 ## Installation
 
@@ -26,13 +26,13 @@ dependencies: [
 
 ## Quick Start
 
-### Define a Model
+### Define a Table
 
 ```swift
 import SQLiteORM
 
-@Model
-struct User: Model {
+@ORMTable
+struct User: ORMTable {
     typealias IDType = Int
     
     var id: Int = 0
@@ -70,7 +70,7 @@ case .failure(let error):
 }
 
 // Query with conditions
-let query = QueryBuilder<User>()
+let query = ORMQueryBuilder<User>()
     .where("isActive", .equal, true)
     .orderBy("createdAt", ascending: false)
     .limit(10)
@@ -83,15 +83,15 @@ let activeUsers = await userRepo.findAll(query: query)
 ### Custom Column Names
 
 ```swift
-@Model
-@Table("app_users")
-struct User: Model {
+@ORMTable
+@ORMTableName("app_users")
+struct User: ORMTable {
     var id: Int = 0
     
-    @Column("user_name")
+    @ORMColumn("user_name")
     var username: String
     
-    @Column("email_address")
+    @ORMColumn("email_address")
     var email: String
 }
 ```
@@ -99,17 +99,17 @@ struct User: Model {
 ### Indexes and Constraints
 
 ```swift
-@Model
-struct User: Model {
+@ORMTable
+struct User: ORMTable {
     var id: Int = 0
     
-    @Unique
+    @ORMUnique
     var username: String
     
-    @Indexed
+    @ORMIndexed
     var email: String
     
-    @Indexed
+    @ORMIndexed
     var createdAt: Date
 }
 ```
@@ -195,8 +195,8 @@ let query = await orm.query(User.self)
 #### Traditional Query Builder
 
 ```swift
-// Still supported for compatibility
-let query = QueryBuilder<User>()
+// Still supported for compatibility  
+let query = ORMQueryBuilder<User>()
     .where("createdAt", .greaterThan, Date().addingTimeInterval(-86400))
     .whereIn("status", ["active", "pending"])
     .orderBy("username")
@@ -204,7 +204,7 @@ let query = QueryBuilder<User>()
     .offset(100)
 
 // Joins
-let query = QueryBuilder<User>()
+let query = ORMQueryBuilder<User>()
     .select("users.*", "COUNT(posts.id) as post_count")
     .leftJoin("posts", on: "posts.user_id = users.id")
     .groupBy("users.id")
@@ -248,7 +248,7 @@ let allUsersSubscription = await userRepo.subscribe()
 
 // Subscribe with a query filter
 let activeUsersSubscription = await userRepo.subscribe(
-    query: QueryBuilder<User>().where("isActive", .equal, true)
+    query: ORMQueryBuilder<User>().where("isActive", .equal, true)
 )
 
 // Subscribe to a single user by ID
@@ -261,8 +261,8 @@ let countSubscription = await userRepo.subscribeCount()
 ### Fluent Query Subscriptions
 
 ```swift
-// Method 1: Using QueryBuilder with .subscribe(using:)
-let subscription = QueryBuilder<User>()
+// Method 1: Using ORMQueryBuilder with .subscribe(using:)
+let subscription = ORMQueryBuilder<User>()
     .where("isActive", .equal, true)
     .where("score", .greaterThan, 100.0)
     .orderBy("username")

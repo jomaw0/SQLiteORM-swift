@@ -3,13 +3,13 @@ import Foundation
 
 /// Type-safe SQL query builder
 /// Provides a fluent interface for constructing SQL queries
-public struct QueryBuilder<T: Model>: Sendable {
+public struct ORMORMQueryBuilder<T: ORMTable>: Sendable {
     private var selectColumns: [String] = ["*"]
     private var whereConditions: [WhereCondition] = []
     private var orderByColumns: [(column: String, ascending: Bool)] = []
     private var limitValue: Int?
     private var offsetValue: Int?
-    private var joins: [JoinClause] = []
+    private var joins: [ORMJoinClause] = []
     private var groupByColumns: [String] = []
     private var havingConditions: [WhereCondition] = []
     
@@ -31,7 +31,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     }
     
     /// Internal method to create a new builder with the same repository
-    private func withRepository() -> QueryBuilder {
+    private func withRepository() -> Self {
         var builder = self
         builder.repository = self.repository
         return builder
@@ -40,7 +40,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     /// Select specific columns
     /// - Parameter columns: Column names to select
     /// - Returns: Updated query builder
-    public func select(_ columns: String...) -> QueryBuilder {
+    public func select(_ columns: String...) -> Self {
         var builder = self
         builder.selectColumns = columns
         return builder
@@ -49,7 +49,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     /// Select specific columns from array
     /// - Parameter columns: Array of column names to select
     /// - Returns: Updated query builder
-    public func select(_ columns: [String]) -> QueryBuilder {
+    public func select(_ columns: [String]) -> Self {
         var builder = self
         builder.selectColumns = columns
         return builder
@@ -61,7 +61,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - op: The comparison operator
     ///   - value: The value to compare against
     /// - Returns: Updated query builder
-    public func `where`(_ column: String, _ op: ComparisonOperator, _ value: SQLiteConvertible?) -> QueryBuilder {
+    public func `where`(_ column: String, _ op: ComparisonOperator, _ value: SQLiteConvertible?) -> Self {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: op, value: value?.sqliteValue ?? .null))
@@ -73,7 +73,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - column: The column name
     ///   - values: The values to check against
     /// - Returns: Updated query builder
-    public func whereIn(_ column: String, _ values: [SQLiteConvertible]) -> QueryBuilder {
+    public func whereIn(_ column: String, _ values: [SQLiteConvertible]) -> Self {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .in, value: .null, values: values.map { $0.sqliteValue }))
@@ -85,7 +85,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - column: The column name
     ///   - values: The values to check against
     /// - Returns: Updated query builder
-    public func whereNotIn(_ column: String, _ values: [SQLiteConvertible]) -> QueryBuilder {
+    public func whereNotIn(_ column: String, _ values: [SQLiteConvertible]) -> Self {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .notIn, value: .null, values: values.map { $0.sqliteValue }))
@@ -98,7 +98,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - min: The minimum value
     ///   - max: The maximum value
     /// - Returns: Updated query builder
-    public func whereBetween(_ column: String, _ min: SQLiteConvertible, _ max: SQLiteConvertible) -> QueryBuilder {
+    public func whereBetween(_ column: String, _ min: SQLiteConvertible, _ max: SQLiteConvertible) -> Self {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .between, value: min.sqliteValue, secondValue: max.sqliteValue))
@@ -110,7 +110,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - column: The column name
     ///   - pattern: The LIKE pattern
     /// - Returns: Updated query builder
-    public func whereLike(_ column: String, _ pattern: String) -> QueryBuilder {
+    public func whereLike(_ column: String, _ pattern: String) -> Self {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .like, value: .text(pattern)))
@@ -122,7 +122,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - column: The column to order by
     ///   - ascending: Whether to sort in ascending order (default: true)
     /// - Returns: Updated query builder
-    public func orderBy(_ column: String, ascending: Bool = true) -> QueryBuilder {
+    public func orderBy(_ column: String, ascending: Bool = true) -> Self {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.orderByColumns.append((column: mappedColumn, ascending: ascending))
@@ -132,7 +132,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     /// Add a LIMIT clause
     /// - Parameter limit: The maximum number of rows to return
     /// - Returns: Updated query builder
-    public func limit(_ limit: Int) -> QueryBuilder {
+    public func limit(_ limit: Int) -> Self {
         var builder = self
         builder.limitValue = limit
         return builder
@@ -141,7 +141,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     /// Add an OFFSET clause
     /// - Parameter offset: The number of rows to skip
     /// - Returns: Updated query builder
-    public func offset(_ offset: Int) -> QueryBuilder {
+    public func offset(_ offset: Int) -> Self {
         var builder = self
         builder.offsetValue = offset
         return builder
@@ -152,9 +152,9 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - table: The table to join
     ///   - on: The join condition
     /// - Returns: Updated query builder
-    public func join(_ table: String, on condition: String) -> QueryBuilder {
+    public func join(_ table: String, on condition: String) -> Self {
         var builder = self
-        builder.joins.append(JoinClause(type: .inner, table: table, condition: condition))
+        builder.joins.append(ORMJoinClause(type: .inner, table: table, condition: condition))
         return builder
     }
     
@@ -163,16 +163,16 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - table: The table to join
     ///   - on: The join condition
     /// - Returns: Updated query builder
-    public func leftJoin(_ table: String, on condition: String) -> QueryBuilder {
+    public func leftJoin(_ table: String, on condition: String) -> Self {
         var builder = self
-        builder.joins.append(JoinClause(type: .left, table: table, condition: condition))
+        builder.joins.append(ORMJoinClause(type: .left, table: table, condition: condition))
         return builder
     }
     
     /// Add a GROUP BY clause
     /// - Parameter columns: Columns to group by
     /// - Returns: Updated query builder
-    public func groupBy(_ columns: String...) -> QueryBuilder {
+    public func groupBy(_ columns: String...) -> Self {
         var builder = self
         builder.groupByColumns = columns.map { mapColumnName($0) }
         return builder
@@ -181,7 +181,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     /// Add a GROUP BY clause from array
     /// - Parameter columns: Array of columns to group by
     /// - Returns: Updated query builder
-    public func groupBy(_ columns: [String]) -> QueryBuilder {
+    public func groupBy(_ columns: [String]) -> Self {
         var builder = self
         builder.groupByColumns = columns.map { mapColumnName($0) }
         return builder
@@ -193,7 +193,7 @@ public struct QueryBuilder<T: Model>: Sendable {
     ///   - op: The comparison operator
     ///   - value: The value to compare against
     /// - Returns: Updated query builder
-    public func having(_ column: String, _ op: ComparisonOperator, _ value: SQLiteConvertible) -> QueryBuilder {
+    public func having(_ column: String, _ op: ComparisonOperator, _ value: SQLiteConvertible) -> Self {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.havingConditions.append(WhereCondition(column: mappedColumn, operator: op, value: value.sqliteValue))
@@ -317,7 +317,7 @@ public struct QueryBuilder<T: Model>: Sendable {
 
 // MARK: - Combine Subscription Extensions
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
-extension QueryBuilder {
+extension ORMQueryBuilder {
     
     /// Subscribe to this query's results using the provided repository
     /// - Parameter repository: The repository to use for the subscription
@@ -384,8 +384,18 @@ public enum JoinType: String, Sendable {
 }
 
 /// Represents a JOIN clause
-public struct JoinClause: Sendable {
+public struct ORMJoinClause: Sendable {
     let type: JoinType
     let table: String
     let condition: String
 }
+
+// MARK: - Backward Compatibility
+
+/// Backward compatibility alias
+@available(*, deprecated, renamed: "ORMQueryBuilder")
+public typealias QueryBuilder<T> = ORMQueryBuilder<T> where T: ORMTable
+
+/// Backward compatibility alias
+@available(*, deprecated, renamed: "ORMJoinClause")
+public typealias JoinClause = ORMJoinClause

@@ -20,6 +20,9 @@ public actor ORM {
     /// Disk storage manager for large data objects
     public nonisolated let diskStorageManager: DiskStorageManager?
     
+    /// Relationship manager for lazy loading
+    private var relationshipManager: RelationshipManager?
+    
     /// Initialize ORM with database path
     /// - Parameters:
     ///   - path: Path to database file (use ":memory:" for in-memory database)
@@ -39,6 +42,9 @@ public actor ORM {
         } else {
             self.diskStorageManager = nil
         }
+        
+        // Relationship manager will be initialized on first use
+        self.relationshipManager = nil
     }
     
     /// Open database connection
@@ -53,6 +59,17 @@ public actor ORM {
         await database.close()
     }
     
+    /// Get the relationship manager, creating it if needed
+    private func getRelationshipManager() -> RelationshipManager {
+        if let manager = relationshipManager {
+            return manager
+        }
+        
+        let manager = RelationshipManager(orm: self)
+        relationshipManager = manager
+        return manager
+    }
+    
     /// Get or create a repository for the specified model type
     /// - Parameter type: The model type
     /// - Returns: Repository instance for the model
@@ -63,12 +80,13 @@ public actor ORM {
             return cached
         }
         
+        let relManager = getRelationshipManager()
         let repository: Repository<T>
         if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
-            repository = Repository<T>(database: database, changeNotifier: changeNotifier, diskStorageManager: diskStorageManager)
+            repository = Repository<T>(database: database, changeNotifier: changeNotifier, diskStorageManager: diskStorageManager, relationshipManager: relManager)
         } else {
             // For older platforms, create a dummy change notifier
-            repository = Repository<T>(database: database, changeNotifier: ChangeNotifier(), diskStorageManager: diskStorageManager)
+            repository = Repository<T>(database: database, changeNotifier: ChangeNotifier(), diskStorageManager: diskStorageManager, relationshipManager: relManager)
         }
         repositories[key] = repository
         return repository

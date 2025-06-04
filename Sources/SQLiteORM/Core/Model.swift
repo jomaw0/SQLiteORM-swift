@@ -1,8 +1,8 @@
 import Foundation
 
-/// The core protocol that all ORM models must conform to
+/// The core protocol that all ORM tables must conform to
 /// Provides automatic SQL generation and type-safe database operations
-public protocol Model: Codable, Sendable {
+public protocol ORMTable: Codable, Sendable {
     /// The type used for the primary key
     associatedtype IDType: Codable & Sendable & LosslessStringConvertible & Equatable
     
@@ -18,27 +18,27 @@ public protocol Model: Codable, Sendable {
     static var columnMappings: [String: String]? { get }
     
     /// Indexes to be created for this table
-    static var indexes: [Index] { get }
+    static var indexes: [ORMIndex] { get }
     
     /// Unique constraints for the table
-    static var uniqueConstraints: [UniqueConstraint] { get }
+    static var uniqueConstraints: [ORMUniqueConstraint] { get }
 }
 
-/// Default implementations for Model protocol
-public extension Model {
+/// Default implementations for ORMTable protocol
+public extension ORMTable {
     static var tableName: String {
         String(describing: Self.self).pluralized()
     }
     
     static var columnMappings: [String: String]? { nil }
     
-    static var indexes: [Index] { [] }
+    static var indexes: [ORMIndex] { [] }
     
-    static var uniqueConstraints: [UniqueConstraint] { [] }
+    static var uniqueConstraints: [ORMUniqueConstraint] { [] }
 }
 
 /// Represents a database index
-public struct Index: Sendable {
+public struct ORMIndex: Sendable {
     public let name: String
     public let columns: [String]
     public let unique: Bool
@@ -51,7 +51,7 @@ public struct Index: Sendable {
 }
 
 /// Represents a unique constraint
-public struct UniqueConstraint: Sendable {
+public struct ORMUniqueConstraint: Sendable {
     public let name: String
     public let columns: [String]
     
@@ -61,16 +61,38 @@ public struct UniqueConstraint: Sendable {
     }
 }
 
-/// Protocol for models that track creation and update timestamps
-public protocol Timestamped {
+/// Protocol for tables that track creation and update timestamps
+public protocol ORMTimestamped {
     var createdAt: Date { get set }
     var updatedAt: Date { get set }
 }
 
-/// Protocol for soft-deletable models
-public protocol SoftDeletable {
+/// Protocol for soft-deletable tables
+public protocol ORMSoftDeletable {
     var deletedAt: Date? { get set }
 }
+
+// MARK: - Backward Compatibility
+
+/// Backward compatibility alias
+@available(*, deprecated, renamed: "ORMTable")
+public typealias Model = ORMTable
+
+/// Backward compatibility alias
+@available(*, deprecated, renamed: "ORMIndex")
+public typealias Index = ORMIndex
+
+/// Backward compatibility alias
+@available(*, deprecated, renamed: "ORMUniqueConstraint")
+public typealias UniqueConstraint = ORMUniqueConstraint
+
+/// Backward compatibility alias
+@available(*, deprecated, renamed: "ORMTimestamped")
+public typealias Timestamped = ORMTimestamped
+
+/// Backward compatibility alias
+@available(*, deprecated, renamed: "ORMSoftDeletable")
+public typealias SoftDeletable = ORMSoftDeletable
 
 /// String extension for basic pluralization
 private extension String {

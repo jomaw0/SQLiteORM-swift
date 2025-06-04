@@ -13,7 +13,11 @@ struct SQLiteORMPlugin: CompilerPlugin {
         ColumnMacro.self,
         PrimaryKeyMacro.self,
         IndexedMacro.self,
-        UniqueMacro.self
+        UniqueMacro.self,
+        BelongsToMacro.self,
+        HasManyMacro.self,
+        HasOneMacro.self,
+        ManyToManyMacro.self
     ]
 }
 
@@ -91,6 +95,10 @@ public struct ModelMacro: MemberMacro {
                 """)
             members.append(constraintsProperty)
         }
+        
+        // Generate foreign keys and relationship properties
+        let relationshipCode = generateRelationships(from: structDecl)
+        members.append(contentsOf: relationshipCode)
         
         return members
     }
@@ -171,6 +179,82 @@ public struct ModelMacro: MemberMacro {
         
         return constraints
     }
+    
+    private static func generateRelationships(from structDecl: StructDeclSyntax) -> [DeclSyntax] {
+        var members: [DeclSyntax] = []
+        
+        for member in structDecl.memberBlock.members {
+            if let variable = member.decl.as(VariableDeclSyntax.self),
+               let binding = variable.bindings.first,
+               let pattern = binding.pattern.as(IdentifierPatternSyntax.self) {
+                
+                let propertyName = pattern.identifier.text
+                
+                // Check for relationship attributes
+                for attribute in variable.attributes {
+                    if let attributeSyntax = attribute.as(AttributeSyntax.self),
+                       let attributeTypeName = attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text {
+                        
+                        switch attributeTypeName {
+                        case "BelongsTo":
+                            if let foreignKeyProperty = generateBelongsToForeignKey(
+                                from: attributeSyntax,
+                                propertyName: propertyName
+                            ) {
+                                members.append(foreignKeyProperty)
+                            }
+                            
+                        case "HasMany":
+                            // HasMany doesn't need foreign key on this model
+                            break
+                            
+                        case "HasOne":
+                            // HasOne doesn't need foreign key on this model
+                            break
+                            
+                        case "ManyToMany":
+                            // ManyToMany relationships use junction tables
+                            break
+                            
+                        default:
+                            break
+                        }
+                    }
+                }
+            }
+        }
+        
+        return members
+    }
+    
+    private static func generateBelongsToForeignKey(
+        from attribute: AttributeSyntax,
+        propertyName: String
+    ) -> DeclSyntax? {
+        guard let arguments = attribute.arguments?.as(LabeledExprListSyntax.self) else {
+            return nil
+        }
+        
+        var foreignKeyName: String?
+        
+        // Look for foreignKey parameter
+        for argument in arguments {
+            if argument.label?.text == "foreignKey",
+               let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
+               let value = stringLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text {
+                foreignKeyName = value
+                break
+            }
+        }
+        
+        // Default foreign key name if not specified
+        let finalForeignKeyName = foreignKeyName ?? "\(propertyName)Id"
+        
+        return DeclSyntax("""
+            /// Foreign key for \(raw: propertyName) relationship
+            public var \(raw: finalForeignKeyName): Int = 0
+            """)
+    }
 }
 
 /// @Table macro to specify custom table name
@@ -245,10 +329,154 @@ public struct UniqueMacro: PeerMacro {
     }
 }
 
+// MARK: - Relationship Macros
+
+/// @BelongsTo macro for defining belongs-to relationships
+public struct BelongsToMacro: AccessorMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingAccessorsOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AccessorDeclSyntax] {
+        guard let varDecl = declaration.as(VariableDeclSyntax.self),
+              let binding = varDecl.bindings.first,
+              let pattern = binding.pattern.as(IdentifierPatternSyntax.self) else {
+            throw MacroError.invalidProperty
+        }
+        
+        let propertyName = pattern.identifier.text
+        var foreignKeyName = "\(propertyName)Id"
+        
+        // Parse arguments to get foreign key name
+        if let arguments = node.arguments?.as(LabeledExprListSyntax.self) {
+            for argument in arguments {
+                if argument.label?.text == "foreignKey",
+                   let stringLiteral = argument.expression.as(StringLiteralExprSyntax.self),
+                   let value = stringLiteral.segments.first?.as(StringSegmentSyntax.self)?.content.text {
+                    foreignKeyName = value
+                    break
+                }
+            }
+        }
+        
+        return [
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.get)) {
+                """
+                return _\(raw: propertyName)
+                """
+            },
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.set)) {
+                """
+                _\(raw: propertyName) = newValue
+                if let newValue = newValue {
+                    \(raw: foreignKeyName) = newValue.id as! Int
+                } else {
+                    \(raw: foreignKeyName) = 0
+                }
+                """
+            }
+        ]
+    }
+}
+
+/// @HasMany macro for defining has-many relationships
+public struct HasManyMacro: AccessorMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingAccessorsOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AccessorDeclSyntax] {
+        return [
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.get)) {
+                """
+                return _\(raw: getPropertyName(from: declaration))
+                """
+            },
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.set)) {
+                """
+                _\(raw: getPropertyName(from: declaration)) = newValue
+                """
+            }
+        ]
+    }
+    
+    private static func getPropertyName(from declaration: some DeclSyntaxProtocol) -> String {
+        if let varDecl = declaration.as(VariableDeclSyntax.self),
+           let binding = varDecl.bindings.first,
+           let pattern = binding.pattern.as(IdentifierPatternSyntax.self) {
+            return pattern.identifier.text
+        }
+        return "unknown"
+    }
+}
+
+/// @HasOne macro for defining has-one relationships
+public struct HasOneMacro: AccessorMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingAccessorsOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AccessorDeclSyntax] {
+        return [
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.get)) {
+                """
+                return _\(raw: getPropertyName(from: declaration))
+                """
+            },
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.set)) {
+                """
+                _\(raw: getPropertyName(from: declaration)) = newValue
+                """
+            }
+        ]
+    }
+    
+    private static func getPropertyName(from declaration: some DeclSyntaxProtocol) -> String {
+        if let varDecl = declaration.as(VariableDeclSyntax.self),
+           let binding = varDecl.bindings.first,
+           let pattern = binding.pattern.as(IdentifierPatternSyntax.self) {
+            return pattern.identifier.text
+        }
+        return "unknown"
+    }
+}
+
+/// @ManyToMany macro for defining many-to-many relationships
+public struct ManyToManyMacro: AccessorMacro {
+    public static func expansion(
+        of node: AttributeSyntax,
+        providingAccessorsOf declaration: some DeclSyntaxProtocol,
+        in context: some MacroExpansionContext
+    ) throws -> [AccessorDeclSyntax] {
+        return [
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.get)) {
+                """
+                return _\(raw: getPropertyName(from: declaration))
+                """
+            },
+            AccessorDeclSyntax(accessorSpecifier: .keyword(.set)) {
+                """
+                _\(raw: getPropertyName(from: declaration)) = newValue
+                """
+            }
+        ]
+    }
+    
+    private static func getPropertyName(from declaration: some DeclSyntaxProtocol) -> String {
+        if let varDecl = declaration.as(VariableDeclSyntax.self),
+           let binding = varDecl.bindings.first,
+           let pattern = binding.pattern.as(IdentifierPatternSyntax.self) {
+            return pattern.identifier.text
+        }
+        return "unknown"
+    }
+}
+
 /// Macro errors
 enum MacroError: Error, CustomStringConvertible {
     case onlyApplicableToStruct
     case invalidArguments
+    case invalidProperty
     
     var description: String {
         switch self {
@@ -256,6 +484,8 @@ enum MacroError: Error, CustomStringConvertible {
             return "@Model can only be applied to structs"
         case .invalidArguments:
             return "Invalid macro arguments"
+        case .invalidProperty:
+            return "Macro can only be applied to variable properties"
         }
     }
 }
