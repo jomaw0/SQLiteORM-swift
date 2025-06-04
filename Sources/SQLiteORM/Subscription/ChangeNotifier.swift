@@ -25,20 +25,30 @@ public actor ChangeNotifier {
     /// Notify subscribers that a table has changed
     /// - Parameter tableName: The name of the table that changed
     public func notifyChange(for tableName: String) {
-        subjects[tableName]?.send(())
+        if let subject = subjects[tableName] {
+            DispatchQueue.main.async {
+                subject.send(())
+            }
+        }
     }
     
     /// Remove all subscribers for a table
     /// - Parameter tableName: The name of the table to cleanup
     public func cleanup(for tableName: String) {
-        subjects[tableName]?.send(completion: .finished)
+        if let subject = subjects[tableName] {
+            DispatchQueue.main.async {
+                subject.send(completion: .finished)
+            }
+        }
         subjects.removeValue(forKey: tableName)
     }
     
     /// Remove all subscribers and cleanup resources
     public func cleanupAll() {
         for subject in subjects.values {
-            subject.send(completion: .finished)
+            DispatchQueue.main.async {
+                subject.send(completion: .finished)
+            }
         }
         subjects.removeAll()
     }

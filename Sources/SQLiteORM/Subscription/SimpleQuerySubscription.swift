@@ -47,7 +47,9 @@ public final class SimpleQuerySubscription<T: Model>: ObservableObject {
     
     private func refreshData() async {
         let newResult = await repository.findAll(query: query)
-        result = newResult
+        await MainActor.run {
+            result = newResult
+        }
     }
 }
 
@@ -97,7 +99,9 @@ public final class SimpleSingleQuerySubscription<T: Model>: ObservableObject {
     
     private func refreshData() async {
         let newResult = await repository.findFirst(query: query)
-        result = newResult
+        await MainActor.run {
+            result = newResult
+        }
     }
 }
 
@@ -147,6 +151,8 @@ public final class SimpleCountSubscription<T: Model>: ObservableObject {
     
     private func refreshData() async {
         let newResult = await repository.count(query: query)
-        result = newResult
+        await MainActor.run {
+            result = newResult
+        }
     }
 }

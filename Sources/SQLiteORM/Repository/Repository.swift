@@ -162,12 +162,16 @@ public actor Repository<T: Model> {
             let query = QueryBuilder<T>().where("id", .equal, model.id as? SQLiteConvertible)
             let (sql, bindings) = query.buildUpdate(updates)
             
-            return await database.execute(sql, bindings: bindings).flatMap { rowsAffected in
+            let result = await database.execute(sql, bindings: bindings)
+            switch result {
+            case .success(let rowsAffected):
                 if rowsAffected > 0 {
                     // Notify subscribers of the change
-                    Task { await changeNotifier.notifyChange(for: T.tableName) }
+                    await changeNotifier.notifyChange(for: T.tableName)
                 }
                 return .success(model)
+            case .failure(let error):
+                return .failure(error)
             }
         } catch {
             return .failure(.invalidData(reason: error.localizedDescription))
@@ -206,12 +210,16 @@ public actor Repository<T: Model> {
         let query = QueryBuilder<T>().where("id", .equal, id as? SQLiteConvertible)
         let (sql, bindings) = query.buildDelete()
         
-        return await database.execute(sql, bindings: bindings).flatMap { rowsAffected in
+        let result = await database.execute(sql, bindings: bindings)
+        switch result {
+        case .success(let rowsAffected):
             if rowsAffected > 0 {
                 // Notify subscribers of the change
-                Task { await changeNotifier.notifyChange(for: T.tableName) }
+                await changeNotifier.notifyChange(for: T.tableName)
             }
             return .success(rowsAffected)
+        case .failure(let error):
+            return .failure(error)
         }
     }
     
@@ -220,12 +228,16 @@ public actor Repository<T: Model> {
     /// - Returns: Result with number of rows deleted
     public func deleteWhere(query: QueryBuilder<T>) async -> ORMResult<Int> {
         let (sql, bindings) = query.buildDelete()
-        return await database.execute(sql, bindings: bindings).flatMap { rowsAffected in
+        let result = await database.execute(sql, bindings: bindings)
+        switch result {
+        case .success(let rowsAffected):
             if rowsAffected > 0 {
                 // Notify subscribers of the change
-                Task { await changeNotifier.notifyChange(for: T.tableName) }
+                await changeNotifier.notifyChange(for: T.tableName)
             }
             return .success(rowsAffected)
+        case .failure(let error):
+            return .failure(error)
         }
     }
     
