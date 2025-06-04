@@ -225,6 +225,24 @@ public actor Repository<T: Model> {
         }
     }
     
+    /// Execute a raw count query
+    /// - Parameters:
+    ///   - sql: The SQL query (should return a single integer)
+    ///   - bindings: Parameter bindings
+    /// - Returns: Result containing the count
+    public func rawCount(_ sql: String, bindings: [SQLiteConvertible] = []) async -> ORMResult<Int> {
+        let sqliteBindings = bindings.map { $0.sqliteValue }
+        
+        return await database.query(sql, bindings: sqliteBindings).flatMap { rows in
+            guard let row = rows.first,
+                  let firstValue = row.values.first,
+                  case .integer(let count) = firstValue else {
+                return .failure(.invalidData(reason: "Failed to get count"))
+            }
+            return .success(Int(count))
+        }
+    }
+    
     /// Create the table for this model if it doesn't exist
     /// - Returns: Result indicating success or failure
     public func createTable() async -> ORMResult<Void> {

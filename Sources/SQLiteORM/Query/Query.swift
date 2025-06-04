@@ -130,9 +130,10 @@ public struct Query<T: Model>: Sendable {
             return .failure(.invalidOperation(reason: "No repository available for fetch"))
         }
         
-        // Convert to QueryBuilder for execution
-        let queryBuilder = toQueryBuilder()
-        return await repository.findAll(query: queryBuilder)
+        // Use direct SQL execution for complex predicates
+        let (sql, bindings) = buildSQL()
+        let convertibleBindings = bindings.compactMap { SQLiteValueConvertible(value: $0) }
+        return await repository.raw(sql, bindings: convertibleBindings)
     }
     
     /// Execute the query and fetch the first result
@@ -141,9 +142,13 @@ public struct Query<T: Model>: Sendable {
             return .failure(.invalidOperation(reason: "No repository available for fetch"))
         }
         
-        // Convert to QueryBuilder for execution
-        let queryBuilder = toQueryBuilder().limit(1)
-        return await repository.findFirst(query: queryBuilder)
+        // Use direct SQL execution with limit 1
+        let limitedQuery = self.limit(1)
+        let (sql, bindings) = limitedQuery.buildSQL()
+        let convertibleBindings = bindings.compactMap { SQLiteValueConvertible(value: $0) }
+        return await repository.raw(sql, bindings: convertibleBindings).map { models in
+            models.first
+        }
     }
     
     /// Execute the query and count results
@@ -152,9 +157,19 @@ public struct Query<T: Model>: Sendable {
             return .failure(.invalidOperation(reason: "No repository available for count"))
         }
         
-        // Convert to QueryBuilder for execution
-        let queryBuilder = toQueryBuilder()
-        return await repository.count(query: queryBuilder)
+        // Build a count query manually
+        var sql = "SELECT COUNT(*) FROM \(T.tableName)"
+        var bindings: [SQLiteValue] = []
+        
+        // Add WHERE clause
+        if let predicate = predicate {
+            let (whereSQL, whereBindings) = predicate.buildSQL(columnMapper: mapColumnName)
+            sql += " WHERE \(whereSQL)"
+            bindings.append(contentsOf: whereBindings)
+        }
+        
+        let convertibleBindings = bindings.compactMap { SQLiteValueConvertible(value: $0) }
+        return await repository.rawCount(sql, bindings: convertibleBindings)
     }
     
     /// Delete all matching records
