@@ -3,7 +3,7 @@ import Foundation
 
 /// Type-safe SQL query builder
 /// Provides a fluent interface for constructing SQL queries
-public struct ORMORMQueryBuilder<T: ORMTable>: Sendable {
+public struct ORMQueryBuilder<T: ORMTable>: Sendable {
     private var selectColumns: [String] = ["*"]
     private var whereConditions: [WhereCondition] = []
     private var orderByColumns: [(column: String, ascending: Bool)] = []
@@ -114,6 +114,94 @@ public struct ORMORMQueryBuilder<T: ORMTable>: Sendable {
         var builder = self
         let mappedColumn = mapColumnName(column)
         builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .like, value: .text(pattern)))
+        return builder
+    }
+    
+    // MARK: - Convenience WHERE Methods
+    
+    /// Add a WHERE column = value condition
+    /// - Parameters:
+    ///   - column: The column name
+    ///   - value: The value to compare against
+    /// - Returns: Updated query builder
+    public func whereEqual(_ column: String, _ value: SQLiteConvertible?) -> Self {
+        return `where`(column, .equal, value)
+    }
+    
+    /// Add a WHERE column != value condition
+    /// - Parameters:
+    ///   - column: The column name
+    ///   - value: The value to compare against
+    /// - Returns: Updated query builder
+    public func whereNotEqual(_ column: String, _ value: SQLiteConvertible?) -> Self {
+        return `where`(column, .notEqual, value)
+    }
+    
+    /// Add a WHERE column > value condition
+    /// - Parameters:
+    ///   - column: The column name
+    ///   - value: The value to compare against
+    /// - Returns: Updated query builder
+    public func whereGreaterThan(_ column: String, _ value: SQLiteConvertible?) -> Self {
+        return `where`(column, .greaterThan, value)
+    }
+    
+    /// Add a WHERE column >= value condition
+    /// - Parameters:
+    ///   - column: The column name
+    ///   - value: The value to compare against
+    /// - Returns: Updated query builder
+    public func whereGreaterThanOrEqual(_ column: String, _ value: SQLiteConvertible?) -> Self {
+        return `where`(column, .greaterThanOrEqual, value)
+    }
+    
+    /// Add a WHERE column < value condition
+    /// - Parameters:
+    ///   - column: The column name
+    ///   - value: The value to compare against
+    /// - Returns: Updated query builder
+    public func whereLessThan(_ column: String, _ value: SQLiteConvertible?) -> Self {
+        return `where`(column, .lessThan, value)
+    }
+    
+    /// Add a WHERE column <= value condition
+    /// - Parameters:
+    ///   - column: The column name
+    ///   - value: The value to compare against
+    /// - Returns: Updated query builder
+    public func whereLessThanOrEqual(_ column: String, _ value: SQLiteConvertible?) -> Self {
+        return `where`(column, .lessThanOrEqual, value)
+    }
+    
+    /// Add a WHERE column NOT LIKE pattern condition
+    /// - Parameters:
+    ///   - column: The column name
+    ///   - pattern: The NOT LIKE pattern
+    /// - Returns: Updated query builder
+    public func whereNotLike(_ column: String, _ pattern: String) -> Self {
+        var builder = self
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .notLike, value: .text(pattern)))
+        return builder
+    }
+    
+    /// Add a WHERE column IS NULL condition
+    /// - Parameter column: The column name
+    /// - Returns: Updated query builder
+    public func whereNull(_ column: String) -> Self {
+        var builder = self
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .isNull, value: .null))
+        return builder
+    }
+    
+    /// Add a WHERE column IS NOT NULL condition
+    /// - Parameter column: The column name
+    /// - Returns: Updated query builder
+    public func whereNotNull(_ column: String) -> Self {
+        var builder = self
+        let mappedColumn = mapColumnName(column)
+        builder.whereConditions.append(WhereCondition(column: mappedColumn, operator: .isNotNull, value: .null))
         return builder
     }
     
