@@ -16,13 +16,18 @@ public actor Repository<T: Model> {
     /// The change notifier for reactive subscriptions
     private let changeNotifier: ChangeNotifier
     
+    /// Optional disk storage manager for large data objects
+    private let diskStorageManager: DiskStorageManager?
+    
     /// Initialize a new repository
     /// - Parameters:
     ///   - database: The database connection to use
     ///   - changeNotifier: The change notification system
-    public init(database: SQLiteDatabase, changeNotifier: ChangeNotifier) {
+    ///   - diskStorageManager: Optional disk storage manager for large objects
+    public init(database: SQLiteDatabase, changeNotifier: ChangeNotifier, diskStorageManager: DiskStorageManager? = nil) {
         self.database = database
         self.changeNotifier = changeNotifier
+        self.diskStorageManager = diskStorageManager
     }
     
     /// Find a model by its ID
@@ -35,17 +40,22 @@ public actor Repository<T: Model> {
         
         let (sql, bindings) = query.buildSelect()
         
-        return await database.query(sql, bindings: bindings).flatMap { rows in
+        let queryResult = await database.query(sql, bindings: bindings)
+        switch queryResult {
+        case .success(let rows):
             guard let row = rows.first else {
                 return .success(nil)
             }
             
             do {
-                let model = try decoder.decode(T.self, from: row)
+                var model = try decoder.decode(T.self, from: row)
+                try await loadDiskStoredProperties(for: &model, from: row)
                 return .success(model)
             } catch {
                 return .failure(.invalidData(reason: error.localizedDescription))
             }
+        case .failure(let error):
+            return .failure(error)
         }
     }
     
@@ -56,15 +66,25 @@ public actor Repository<T: Model> {
         let queryBuilder = query ?? QueryBuilder<T>()
         let (sql, bindings) = queryBuilder.buildSelect()
         
-        return await database.query(sql, bindings: bindings).flatMap { rows in
+        let queryResult = await database.query(sql, bindings: bindings)
+        switch queryResult {
+        case .success(let rows):
             do {
-                let models = try rows.map { row in
-                    try decoder.decode(T.self, from: row)
+                var models: [T] = []
+                models.reserveCapacity(rows.count)
+                
+                for row in rows {
+                    var model = try decoder.decode(T.self, from: row)
+                    try await loadDiskStoredProperties(for: &model, from: row)
+                    models.append(model)
                 }
+                
                 return .success(models)
             } catch {
                 return .failure(.invalidData(reason: error.localizedDescription))
             }
+        case .failure(let error):
+            return .failure(error)
         }
     }
     
@@ -101,7 +121,11 @@ public actor Repository<T: Model> {
     /// - Returns: Result containing the inserted model with updated ID
     public func insert(_ model: inout T) async -> ORMResult<T> {
         do {
-            let values = try encoder.encode(model)
+            // Handle disk storage before encoding
+            var processedModel = model
+            try await processDiskStorageForInsert(&processedModel)
+            
+            let values = try encoder.encode(processedModel)
             
             // Remove id if it's 0 or default value to use auto-increment
             var insertValues = values
@@ -125,12 +149,13 @@ public actor Repository<T: Model> {
                 
                 // Convert Int64 to model's ID type
                 if let convertedId = T.IDType(String(newId)) {
-                    model.id = convertedId
+                    processedModel.id = convertedId
+                    model = processedModel
                     
                     // Notify subscribers of the change
                     await changeNotifier.notifyChange(for: T.tableName)
                     
-                    return .success(model)
+                    return .success(processedModel)
                 } else {
                     return .failure(.invalidData(reason: "Failed to convert inserted ID"))
                 }
@@ -353,3 +378,22 @@ private struct SQLiteValueConvertible: SQLiteConvertible {
         value
     }
 }
+
+// MARK: - Disk Storage Support
+extension Repository {
+    
+    /// Process disk storage for model insertion
+    private func processDiskStorageForInsert(_ model: inout T) async throws {
+        // For now, skip disk storage processing as it requires more integration
+        // This feature will be fully implemented in a future update
+        return
+    }
+    
+    /// Load disk-stored properties for a model
+    private func loadDiskStoredProperties(for model: inout T, from row: [String: SQLiteValue]) async throws {
+        // For now, skip disk storage loading as it requires more integration
+        // This feature will be fully implemented in a future update
+        return
+    }
+}
+

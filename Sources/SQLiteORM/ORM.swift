@@ -17,13 +17,28 @@ public actor ORM {
     @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
     public let changeNotifier = ChangeNotifier()
     
+    /// Disk storage manager for large data objects
+    public nonisolated let diskStorageManager: DiskStorageManager?
+    
     /// Initialize ORM with database path
     /// - Parameters:
     ///   - path: Path to database file (use ":memory:" for in-memory database)
     ///   - configuration: Database configuration
-    public init(path: String, configuration: DatabaseConfiguration = .default) {
+    ///   - enableDiskStorage: Whether to enable disk storage for large objects
+    public init(path: String, configuration: DatabaseConfiguration = .default, enableDiskStorage: Bool = true) {
         self.database = SQLiteDatabase(path: path, configuration: configuration)
         self.migrations = MigrationManager(database: database)
+        
+        // Initialize disk storage if enabled and not using in-memory database
+        if enableDiskStorage && path != ":memory:" {
+            do {
+                self.diskStorageManager = try DiskStorageManager(databasePath: path)
+            } catch {
+                self.diskStorageManager = nil
+            }
+        } else {
+            self.diskStorageManager = nil
+        }
     }
     
     /// Open database connection
@@ -50,10 +65,10 @@ public actor ORM {
         
         let repository: Repository<T>
         if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
-            repository = Repository<T>(database: database, changeNotifier: changeNotifier)
+            repository = Repository<T>(database: database, changeNotifier: changeNotifier, diskStorageManager: diskStorageManager)
         } else {
             // For older platforms, create a dummy change notifier
-            repository = Repository<T>(database: database, changeNotifier: ChangeNotifier())
+            repository = Repository<T>(database: database, changeNotifier: ChangeNotifier(), diskStorageManager: diskStorageManager)
         }
         repositories[key] = repository
         return repository
@@ -127,16 +142,17 @@ public actor ORM {
 /// Create a new ORM instance with in-memory database
 /// - Returns: Configured ORM instance
 public func createInMemoryORM() -> ORM {
-    ORM(path: ":memory:")
+    ORM(path: ":memory:", enableDiskStorage: false)
 }
 
 /// Create a new ORM instance with file-based database
 /// - Parameters:
 ///   - filename: Database filename
 ///   - directory: Directory path (defaults to documents directory)
+///   - enableDiskStorage: Whether to enable disk storage for large objects
 /// - Returns: Configured ORM instance
-public func createFileORM(filename: String, directory: URL? = nil) -> ORM {
+public func createFileORM(filename: String, directory: URL? = nil, enableDiskStorage: Bool = true) -> ORM {
     let dir = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
     let path = dir.appendingPathComponent(filename).path
-    return ORM(path: path)
+    return ORM(path: path, enableDiskStorage: enableDiskStorage)
 }
