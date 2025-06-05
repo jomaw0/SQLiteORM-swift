@@ -11,17 +11,13 @@ import SwiftUI
 struct ShoppingItemsView: View {
     let shoppingList: ShoppingList
     @EnvironmentObject var databaseManager: DatabaseManager
-    @StateObject private var viewModel: ShoppingItemsViewModel
     @State private var showingAddItem = false
-    @State private var filteredItems: [ShoppingItem] = []
-    @State private var allCategories: [String] = ["All"]
-    @State private var statistics: (total: Int, checked: Int, totalCost: Double, purchasedCost: Double) = (0, 0, 0.0, 0.0)
-    @State private var completionPercentage: Double = 0.0
-    
-    init(shoppingList: ShoppingList) {
-        self.shoppingList = shoppingList
-        self._viewModel = StateObject(wrappedValue: ShoppingItemsViewModel(shoppingList: shoppingList))
-    }
+    @State private var searchText = ""
+    @State private var selectedCategory = "All"
+    @State private var showCheckedItems = true
+    @State private var selectedItem: ShoppingItem?
+    @State private var showingDeleteAlert = false
+    @State private var itemToDelete: ShoppingItem?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -46,13 +42,13 @@ struct ShoppingItemsView: View {
         .toolbar {
             ToolbarItemGroup(placement: .navigationBarTrailing) {
                 Menu {
-                    Picker("Category", selection: $viewModel.selectedCategory) {
+                    Picker("Category", selection: $selectedCategory) {
                         ForEach(allCategories, id: \.self) { category in
                             Text(category).tag(category)
                         }
                     }
                     
-                    Toggle("Show Checked Items", isOn: $viewModel.showCheckedItems)
+                    Toggle("Show Checked Items", isOn: $showCheckedItems)
                 } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
                 }
@@ -64,59 +60,85 @@ struct ShoppingItemsView: View {
                 }
             }
         }
-        .searchable(text: $viewModel.searchText, prompt: "Search items")
+        .searchable(text: $searchText, prompt: "Search items")
         .sheet(isPresented: $showingAddItem) {
             AddEditItemView(shoppingList: shoppingList, databaseManager: databaseManager)
         }
-        .sheet(item: $viewModel.selectedItem) { item in
+        .sheet(item: $selectedItem) { item in
             AddEditItemView(shoppingList: shoppingList, itemToEdit: item, databaseManager: databaseManager)
         }
-        .alert("Delete Item", isPresented: $viewModel.showingDeleteAlert) {
+        .alert("Delete Item", isPresented: $showingDeleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
-                if let itemToDelete = viewModel.itemToDelete {
+                if let itemToDelete = itemToDelete {
                     Task {
-                        await viewModel.deleteItem(itemToDelete)
+                        await deleteItem(itemToDelete)
                     }
                 }
             }
         } message: {
             Text("Are you sure you want to delete this item?")
         }
-        .onAppear {
-            viewModel.databaseManager = databaseManager
+    }
+    
+    private var filteredItems: [ShoppingItem] {
+        var items = databaseManager.getItemsForList(shoppingList.id)
+        
+        // Filter by search text
+        if !searchText.isEmpty {
+            items = items.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
         }
-        .task {
-            updateData()
+        
+        // Filter by category
+        if selectedCategory != "All" {
+            items = items.filter { $0.category == selectedCategory }
         }
-        .onChange(of: viewModel.searchText) { _ in
-            updateFilteredItems()
+        
+        // Filter by checked status
+        if !showCheckedItems {
+            items = items.filter { !$0.isChecked }
         }
-        .onChange(of: viewModel.selectedCategory) { _ in
-            updateFilteredItems()
-        }
-        .onChange(of: viewModel.showCheckedItems) { _ in
-            updateFilteredItems()
+        
+        // Sort: unchecked items first, then by date added
+        return items.sorted { first, second in
+            if first.isChecked != second.isChecked {
+                return !first.isChecked
+            }
+            return first.addedAt > second.addedAt
         }
     }
     
-    private func updateData() {
-        updateFilteredItems()
-        updateCategories()
-        updateStatistics()
+    private var allCategories: [String] {
+        var categories = ["All"]
+        let usedCategories = Set(databaseManager.getItemsForList(shoppingList.id).map { $0.category })
+        categories.append(contentsOf: usedCategories.sorted())
+        return categories
     }
     
-    private func updateFilteredItems() {
-        filteredItems = viewModel.getFilteredItems()
+    private var statistics: (total: Int, checked: Int, totalCost: Double, purchasedCost: Double) {
+        databaseManager.getListStatistics(shoppingList.id)
     }
     
-    private func updateCategories() {
-        allCategories = viewModel.getAllCategories()
+    private var completionPercentage: Double {
+        let stats = statistics
+        guard stats.total > 0 else { return 0 }
+        return Double(stats.checked) / Double(stats.total) * 100
     }
     
-    private func updateStatistics() {
-        statistics = viewModel.getStatistics()
-        completionPercentage = viewModel.getCompletionPercentage()
+    private func confirmDelete(_ item: ShoppingItem) {
+        itemToDelete = item
+        showingDeleteAlert = true
+    }
+    
+    private func deleteItem(_ item: ShoppingItem) async {
+        let result = await databaseManager.deleteItem(item)
+        if case .failure(let error) = result {
+            print("Failed to delete item: \(error)")
+        }
+    }
+    
+    private func toggleItemChecked(_ item: ShoppingItem) async {
+        await databaseManager.toggleItemChecked(item)
     }
     
     private var progressHeader: some View {
@@ -178,15 +200,14 @@ struct ShoppingItemsView: View {
                     item: item,
                     onToggle: {
                         Task {
-                            await viewModel.toggleItemChecked(item)
-                            updateData()
+                            await toggleItemChecked(item)
                         }
                     },
                     onEdit: {
-                        viewModel.selectedItem = item
+                        selectedItem = item
                     },
                     onDelete: {
-                        viewModel.confirmDelete(item)
+                        confirmDelete(item)
                     }
                 )
             }
