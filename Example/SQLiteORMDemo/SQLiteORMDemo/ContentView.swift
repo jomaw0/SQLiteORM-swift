@@ -7,18 +7,28 @@
 
 import SwiftUI
 
+@available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 struct ContentView: View {
+    @EnvironmentObject var databaseManager: DatabaseManager
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            ShoppingListsView()
+                .tabItem {
+                    Label("Lists", systemImage: "list.bullet")
+                }
+            
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gear")
+                }
         }
-        .padding()
     }
 }
 
 #Preview {
-    ContentView()
+    if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+        ContentView()
+            .environmentObject(DatabaseManager())
+    }
 }

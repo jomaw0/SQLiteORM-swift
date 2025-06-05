@@ -73,7 +73,7 @@ public struct ORMTableMacro: MemberMacro {
         if !indexes.isEmpty {
             let indexesProperty = DeclSyntax("""
                 /// Database indexes
-                public static var indexes: [Index] {
+                public static var indexes: [ORMIndex] {
                     [
                         \(raw: indexes.joined(separator: ",\n        "))
                     ]
@@ -87,7 +87,7 @@ public struct ORMTableMacro: MemberMacro {
         if !uniqueConstraints.isEmpty {
             let constraintsProperty = DeclSyntax("""
                 /// Unique constraints
-                public static var uniqueConstraints: [UniqueConstraint] {
+                public static var uniqueConstraints: [ORMUniqueConstraint] {
                     [
                         \(raw: uniqueConstraints.joined(separator: ",\n        "))
                     ]
@@ -116,7 +116,7 @@ public struct ORMTableMacro: MemberMacro {
                 // Look for @Column attribute
                 for attribute in variable.attributes {
                     if let attributeSyntax = attribute.as(AttributeSyntax.self),
-                       attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Column",
+                       attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "ORMColumn",
                        let arguments = attributeSyntax.arguments?.as(LabeledExprListSyntax.self),
                        let firstArg = arguments.first,
                        let stringLiteral = firstArg.expression.as(StringLiteralExprSyntax.self),
@@ -144,9 +144,9 @@ public struct ORMTableMacro: MemberMacro {
                 // Look for @Indexed attribute
                 for attribute in variable.attributes {
                     if let attributeSyntax = attribute.as(AttributeSyntax.self),
-                       attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Indexed" {
+                       attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "ORMIndexed" {
                         let indexName = "idx_\(structName.lowercased())_\(propertyName.lowercased())"
-                        indexes.append("Index(name: \"\(indexName)\", columns: [\"\(propertyName)\"])")
+                        indexes.append("ORMIndex(name: \"\(indexName)\", columns: [\"\(propertyName)\"])")
                     }
                 }
             }
@@ -169,9 +169,9 @@ public struct ORMTableMacro: MemberMacro {
                 // Look for @Unique attribute
                 for attribute in variable.attributes {
                     if let attributeSyntax = attribute.as(AttributeSyntax.self),
-                       attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "Unique" {
+                       attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text == "ORMUnique" {
                         let constraintName = "uniq_\(structName.lowercased())_\(propertyName.lowercased())"
-                        constraints.append("UniqueConstraint(name: \"\(constraintName)\", columns: [\"\(propertyName)\"])")
+                        constraints.append("ORMUniqueConstraint(name: \"\(constraintName)\", columns: [\"\(propertyName)\"])")
                     }
                 }
             }
@@ -196,7 +196,7 @@ public struct ORMTableMacro: MemberMacro {
                        let attributeTypeName = attributeSyntax.attributeName.as(IdentifierTypeSyntax.self)?.name.text {
                         
                         switch attributeTypeName {
-                        case "BelongsTo":
+                        case "ORMBelongsTo":
                             if let foreignKeyProperty = generateBelongsToForeignKey(
                                 from: attributeSyntax,
                                 propertyName: propertyName
@@ -204,15 +204,15 @@ public struct ORMTableMacro: MemberMacro {
                                 members.append(foreignKeyProperty)
                             }
                             
-                        case "HasMany":
+                        case "ORMHasMany":
                             // HasMany doesn't need foreign key on this model
                             break
                             
-                        case "HasOne":
+                        case "ORMHasOne":
                             // HasOne doesn't need foreign key on this model
                             break
                             
-                        case "ManyToMany":
+                        case "ORMManyToMany":
                             // ManyToMany relationships use junction tables
                             break
                             
@@ -481,7 +481,7 @@ enum MacroError: Error, CustomStringConvertible {
     var description: String {
         switch self {
         case .onlyApplicableToStruct:
-            return "@Model can only be applied to structs"
+            return "@ORMTable can only be applied to structs"
         case .invalidArguments:
             return "Invalid macro arguments"
         case .invalidProperty:

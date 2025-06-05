@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		DDC913AE2DF161F3006313CA /* SQLiteORMDemo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SQLiteORMDemo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DDC913AE2DF161F3006313CA /* SQLiteORMDemo-Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "SQLiteORMDemo-Example.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -45,7 +45,7 @@
 		DDC913AF2DF161F3006313CA /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DDC913AE2DF161F3006313CA /* SQLiteORMDemo.app */,
+				DDC913AE2DF161F3006313CA /* SQLiteORMDemo-Example.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -53,9 +53,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		DDC913AD2DF161F3006313CA /* SQLiteORMDemo */ = {
+		DDC913AD2DF161F3006313CA /* SQLiteORMDemo-Example */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = DDC913B92DF161F5006313CA /* Build configuration list for PBXNativeTarget "SQLiteORMDemo" */;
+			buildConfigurationList = DDC913B92DF161F5006313CA /* Build configuration list for PBXNativeTarget "SQLiteORMDemo-Example" */;
 			buildPhases = (
 				DDC913AA2DF161F3006313CA /* Sources */,
 				DDC913AB2DF161F3006313CA /* Frameworks */,
@@ -68,12 +68,12 @@
 			fileSystemSynchronizedGroups = (
 				DDC913B02DF161F3006313CA /* SQLiteORMDemo */,
 			);
-			name = SQLiteORMDemo;
+			name = "SQLiteORMDemo-Example";
 			packageProductDependencies = (
 				DDC913BD2DF1620A006313CA /* SQLiteORM */,
 			);
 			productName = SQLiteORMDemo;
-			productReference = DDC913AE2DF161F3006313CA /* SQLiteORMDemo.app */;
+			productReference = DDC913AE2DF161F3006313CA /* SQLiteORMDemo-Example.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -91,7 +91,7 @@
 					};
 				};
 			};
-			buildConfigurationList = DDC913A92DF161F3006313CA /* Build configuration list for PBXProject "SQLiteORMDemo" */;
+			buildConfigurationList = DDC913A92DF161F3006313CA /* Build configuration list for PBXProject "SQLiteORMDemo-Example" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -108,7 +108,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				DDC913AD2DF161F3006313CA /* SQLiteORMDemo */,
+				DDC913AD2DF161F3006313CA /* SQLiteORMDemo-Example */,
 			);
 		};
 /* End PBXProject section */
@@ -270,6 +270,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -298,6 +299,7 @@
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -314,7 +316,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		DDC913A92DF161F3006313CA /* Build configuration list for PBXProject "SQLiteORMDemo" */ = {
+		DDC913A92DF161F3006313CA /* Build configuration list for PBXProject "SQLiteORMDemo-Example" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DDC913B72DF161F5006313CA /* Debug */,
@@ -323,7 +325,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		DDC913B92DF161F5006313CA /* Build configuration list for PBXNativeTarget "SQLiteORMDemo" */ = {
+		DDC913B92DF161F5006313CA /* Build configuration list for PBXNativeTarget "SQLiteORMDemo-Example" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				DDC913BA2DF161F5006313CA /* Debug */,
