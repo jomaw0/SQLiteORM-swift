@@ -118,8 +118,17 @@ class DatabaseManager: ObservableObject {
     
     @MainActor
     private func loadInitialData() async {
-        // If no lists exist, create a sample list
-        if shoppingLists.isEmpty {
+        // Check if any lists exist in the database (not just in memory)
+        guard let listRepository = listRepository else { return }
+        
+        let allListsResult = await listRepository.findAll()
+        let hasExistingData = switch allListsResult {
+        case .success(let lists): !lists.isEmpty
+        case .failure: false
+        }
+        
+        // Only create sample data if no lists exist in the database
+        if !hasExistingData {
             await createSampleData()
         }
     }
