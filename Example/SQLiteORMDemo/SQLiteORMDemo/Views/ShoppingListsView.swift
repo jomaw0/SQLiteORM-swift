@@ -80,6 +80,7 @@ struct ShoppingListsView: View {
                             )
                         }
                     }
+                    .onDelete(perform: deleteItems)
                 }
                 .listStyle(PlainListStyle())
             }
@@ -95,6 +96,15 @@ struct ShoppingListsView: View {
         let result = await databaseManager.deleteList(list)
         if case .failure(let error) = result {
             print("Failed to delete list: \(error)")
+        }
+    }
+    
+    private func deleteItems(offsets: IndexSet) {
+        for index in offsets {
+            let list = filteredLists[index]
+            Task {
+                await deleteList(list)
+            }
         }
     }
     
