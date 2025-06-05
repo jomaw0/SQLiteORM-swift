@@ -15,11 +15,23 @@ struct ShoppingItemRowView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Checkbox
+            // Checkbox with animation
             Button(action: onToggle) {
-                Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
-                    .font(.title2)
-                    .foregroundColor(item.isChecked ? .green : .secondary)
+                ZStack {
+                    Circle()
+                        .stroke(item.isChecked ? Color.green : Color.secondary, lineWidth: 2)
+                        .frame(width: 24, height: 24)
+                        .scaleEffect(item.isChecked ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: item.isChecked)
+                    
+                    if item.isChecked {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.green)
+                            .scaleEffect(item.isChecked ? 1.0 : 0.0)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.1), value: item.isChecked)
+                    }
+                }
             }
             .buttonStyle(PlainButtonStyle())
             
@@ -31,12 +43,13 @@ struct ShoppingItemRowView: View {
                         .foregroundColor(.secondary)
                         .frame(width: 16)
                     
-                    // Item name
+                    // Item name with animated strikethrough
                     Text(item.name)
                         .font(.headline)
                         .fontWeight(.medium)
                         .strikethrough(item.isChecked)
                         .foregroundColor(item.isChecked ? .secondary : .primary)
+                        .animation(.easeInOut(duration: 0.3), value: item.isChecked)
                     
                     Spacer()
                     
@@ -72,6 +85,7 @@ struct ShoppingItemRowView: View {
                                 .font(.caption)
                                 .fontWeight(.medium)
                                 .foregroundColor(item.isChecked ? .green : .primary)
+                                .animation(.easeInOut(duration: 0.4), value: item.isChecked)
                         }
                     }
                     
@@ -96,9 +110,17 @@ struct ShoppingItemRowView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
+        .padding(.horizontal, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(item.isChecked ? Color.green.opacity(0.05) : Color.clear)
+                .animation(.easeInOut(duration: 0.3), value: item.isChecked)
+        )
+        .scaleEffect(item.isChecked ? 0.98 : 1.0)
+        .opacity(item.isChecked ? 0.8 : 1.0)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: item.isChecked)
         .contentShape(Rectangle())
-        .opacity(item.isChecked ? 0.7 : 1.0)
     }
 }
 

@@ -138,6 +138,9 @@ struct ShoppingItemsView: View {
     }
     
     private func toggleItemChecked(_ item: ShoppingItem) async {
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0)) {
+            // The UI will animate based on the state change
+        }
         await databaseManager.toggleItemChecked(item)
     }
     
