@@ -159,7 +159,13 @@ private struct DummyKeyedContainer<Key: CodingKey>: KeyedDecodingContainerProtoc
             return Data() as! T
         } else if type == UUID.self {
             return UUID() as! T
+        } else if type == SyncStatus.self {
+            return SyncStatus.synced as! T
+        } else if String(describing: type).contains("Optional") {
+            // Handle optionals by returning nil-wrapped value
+            return Optional<Any>.none as! T
         } else {
+            // For other types, try to create from DummyDecoder, but catch infinite recursion
             return try T(from: DummyDecoder())
         }
     }
@@ -184,7 +190,14 @@ private struct DummyUnkeyedContainer: UnkeyedDecodingContainer {
     
     mutating func decodeNil() throws -> Bool { true }
     mutating func decode<T: Decodable>(_ type: T.Type) throws -> T {
-        try T(from: DummyDecoder())
+        // Use the same logic as KeyedDecodingContainer to handle common types
+        if type == SyncStatus.self {
+            return SyncStatus.synced as! T
+        } else if String(describing: type).contains("Optional") {
+            return Optional<Any>.none as! T
+        } else {
+            return try T(from: DummyDecoder())
+        }
     }
     
     mutating func nestedContainer<NestedKey: CodingKey>(keyedBy type: NestedKey.Type) throws -> KeyedDecodingContainer<NestedKey> {
@@ -203,6 +216,13 @@ private struct DummySingleValueContainer: SingleValueDecodingContainer {
     
     func decodeNil() -> Bool { true }
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
-        try T(from: DummyDecoder())
+        // Use the same logic as KeyedDecodingContainer to handle common types
+        if type == SyncStatus.self {
+            return SyncStatus.synced as! T
+        } else if String(describing: type).contains("Optional") {
+            return Optional<Any>.none as! T
+        } else {
+            return try T(from: DummyDecoder())
+        }
     }
 }

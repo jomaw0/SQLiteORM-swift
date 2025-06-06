@@ -392,5 +392,11 @@ struct Event: ORMTable {
     var title: String
     var eventDate: Date
     
+    // Sync properties
+    var lastSyncTimestamp: Date? = nil
+    var isDirty: Bool = false
+    var syncStatus: SyncStatus = .synced
+    var serverID: String? = nil
+    
     static let tableName = "events"
 }

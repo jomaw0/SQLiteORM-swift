@@ -17,6 +17,12 @@ public struct User: ORMTable {
     public var score: Double = 0.0
     public var metadata: Data?
     
+    // Sync properties (automatically included in all ORMTable models)
+    public var lastSyncTimestamp: Date? = nil
+    public var isDirty: Bool = false
+    public var syncStatus: SyncStatus = .synced
+    public var serverID: String? = nil
+    
     public static var tableName: String { "users" }
     
     public static var columnMappings: [String: String]? {
@@ -50,5 +56,10 @@ public struct User: ORMTable {
         self.isActive = isActive
         self.score = score
         self.metadata = metadata
+        // Sync properties get default values
+        self.lastSyncTimestamp = nil
+        self.isDirty = false
+        self.syncStatus = .synced
+        self.serverID = nil
     }
 }
