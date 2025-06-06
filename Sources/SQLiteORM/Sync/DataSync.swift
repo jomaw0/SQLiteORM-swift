@@ -3,20 +3,20 @@ import Foundation
 // MARK: - Simple Sync for All ORMTable Types
 
 /// Conflict resolution strategy for sync operations
-public enum ConflictResolution {
+public enum ConflictResolution: Sendable {
     case serverWins           // Server data always takes precedence (default)
     case localWins            // Local data always takes precedence
     case newestWins           // Most recently modified data wins
     case askUser              // Trigger callback for user decision
-    case custom((any ORMTable, any ORMTable) -> any ORMTable)
+    case custom(@Sendable (any ORMTable, any ORMTable) -> any ORMTable)
 }
 
 /// Simple sync changes result
-public struct SyncChanges<T: ORMTable> {
-    public let inserted: [T]     // New items from server
-    public let updated: [T]      // Items that were updated
-    public let removed: [T]      // Items that were removed locally
-    public let conflicts: Int    // Number of conflicts resolved
+public struct SyncChanges<T: ORMTable>: Sendable {
+    public var inserted: [T]     // New items from server
+    public var updated: [T]      // Items that were updated
+    public var removed: [T]      // Items that were removed locally
+    public var conflicts: Int    // Number of conflicts resolved
     
     public var totalChanges: Int {
         return inserted.count + updated.count + removed.count
@@ -31,7 +31,7 @@ public struct SyncChanges<T: ORMTable> {
 }
 
 /// Simple sync options
-public struct SyncOptions {
+public struct SyncOptions: Sendable {
     public let conflictResolution: ConflictResolution
     public let deleteRemoved: Bool  // Whether to delete items not in server data
     
@@ -118,7 +118,8 @@ public extension ORMTable {
     static func getLocalChanges(orm: ORM) async -> Result<[Self], Error> {
         let repository = await orm.repository(for: Self.self)
         let dirtyQuery = ORMQueryBuilder<Self>().where("isDirty", .equal, true)
-        return await repository.findAll(query: dirtyQuery)
+        let result = await repository.findAll(query: dirtyQuery)
+        return result.mapError { $0 as Error }
     }
     
     /// Mark models as synced after successful upload
@@ -133,7 +134,7 @@ public extension ORMTable {
             
             let result = await repository.update(syncedModel)
             if case .failure(let error) = result {
-                return .failure(error)
+                return .failure(error as Error)
             }
         }
         

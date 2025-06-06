@@ -65,6 +65,27 @@ public extension ORMTable {
     
     // MARK: - Default Sync Implementations
     
+    /// Default sync properties (so existing models don't break)
+    var lastSyncTimestamp: Date? {
+        get { nil }
+        set { /* Default implementation does nothing */ }
+    }
+    
+    var isDirty: Bool {
+        get { false }
+        set { /* Default implementation does nothing */ }
+    }
+    
+    var syncStatus: SyncStatus {
+        get { .synced }
+        set { /* Default implementation does nothing */ }
+    }
+    
+    var serverID: String? {
+        get { nil }
+        set { /* Default implementation does nothing */ }
+    }
+    
     /// Default conflict fingerprint based on encoded model data
     var conflictFingerprint: String {
         do {
