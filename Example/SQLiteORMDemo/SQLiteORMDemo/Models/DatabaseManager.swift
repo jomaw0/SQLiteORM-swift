@@ -21,8 +21,8 @@ class DatabaseManager: ObservableObject {
     private var itemRepository: Repository<ShoppingItem>?
     
     // Combine subscriptions for real-time updates
-    private var listSubscription: SimpleQuerySubscription<ShoppingList>?
-    private var itemSubscription: SimpleQuerySubscription<ShoppingItem>?
+    private var listSubscription: QuerySubscription<ShoppingList>?
+    private var itemSubscription: QuerySubscription<ShoppingItem>?
     private var cancellables = Set<AnyCancellable>()
     
     init() {
@@ -80,12 +80,18 @@ class DatabaseManager: ObservableObject {
         guard let listRepository = listRepository,
               let itemRepository = itemRepository else { return }
         
-        // Subscribe to all active lists
-        listSubscription = listRepository.subscribe(
+        // Subscribe to all active lists using modern API
+        listSubscription = listRepository.subscribeQuery(
             query: ORMQueryBuilder<ShoppingList>()
                 .where("isActive", .equal, true)
                 .orderBy("createdAt", ascending: false)
         )
+        
+        // Alternative: Using fluent chaining syntax
+        // listSubscription = await listRepository.query()
+        //     .where("isActive", .equal, true)
+        //     .orderBy("createdAt", ascending: false)
+        //     .subscribeQuery()
         
         listSubscription?.$result
             .compactMap { result -> [ShoppingList]? in
@@ -100,11 +106,16 @@ class DatabaseManager: ObservableObject {
             .assign(to: \.shoppingLists, on: self)
             .store(in: &cancellables)
         
-        // Subscribe to all items
-        itemSubscription = itemRepository.subscribe(
+        // Subscribe to all items using modern API
+        itemSubscription = itemRepository.subscribeQuery(
             query: ORMQueryBuilder<ShoppingItem>()
                 .orderBy("addedAt", ascending: false)
         )
+        
+        // Alternative: Using fluent chaining syntax
+        // itemSubscription = await itemRepository.query()
+        //     .orderBy("addedAt", ascending: false)
+        //     .subscribeQuery()
         
         itemSubscription?.$result
             .compactMap { result -> [ShoppingItem]? in
