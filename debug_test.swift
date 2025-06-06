@@ -1,5 +1,5 @@
 import Foundation
-@testable import SQLiteORM
+@testable import SwiftSync
 
 @ORMTable
 struct TestAuthor: ORMTable {

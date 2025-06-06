@@ -1,4 +1,4 @@
-# SQLiteORM Subscription System Enhancement Proposal
+# SwiftSync Subscription System Enhancement Proposal
 
 ## Current State Analysis
 
@@ -416,7 +416,7 @@ enum SubscriptionConfig {
 
 ## Conclusion
 
-The current "Simple" subscription system is solid but represents just the foundation. By building on the excellent atomic setup pattern and expanding with specialized subscription types, improved performance, and better developer tools, SQLiteORM can become a best-in-class reactive data layer for Swift applications.
+The current "Simple" subscription system is solid but represents just the foundation. By building on the excellent atomic setup pattern and expanding with specialized subscription types, improved performance, and better developer tools, SwiftSync can become a best-in-class reactive data layer for Swift applications.
 
 The key is maintaining the simplicity and reliability of the current system while adding power features that developers can opt into as needed.
 

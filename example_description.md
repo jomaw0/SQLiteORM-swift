@@ -1,6 +1,6 @@
-# Shopping List App with SQLiteORM-swift
+# Shopping List App with SwiftSync-swift
 
-A comprehensive SwiftUI shopping list application demonstrating local storage with SQLiteORM-swift, CRUD operations, relationships, and reactive UI updates using Combine.
+A comprehensive SwiftUI shopping list application demonstrating local storage with SwiftSync-swift, CRUD operations, relationships, and reactive UI updates using Combine.
 
 ## 📋 Features
 
@@ -26,7 +26,7 @@ ShoppingListApp/
 ├── Models/
 │   ├── ShoppingList.swift             # Shopping list entity
 │   ├── ShoppingItem.swift             # Shopping item entity
-│   └── DatabaseManager.swift         # SQLiteORM database wrapper
+│   └── DatabaseManager.swift         # SwiftSync database wrapper
 ├── ViewModels/
 │   ├── ShoppingListsViewModel.swift   # Lists overview view model
 │   ├── ShoppingItemsViewModel.swift   # Items detail view model
@@ -62,8 +62,8 @@ ShoppingListApp/
 - **Subscribers**: Views automatically update when data changes
 
 #### 3. **Repository Pattern**
-- **DatabaseManager**: Abstracts SQLiteORM operations
-- **Entity Models**: Direct SQLiteORM entity mappings
+- **DatabaseManager**: Abstracts SwiftSync operations
+- **Entity Models**: Direct SwiftSync entity mappings
 - **Service Layer**: Business logic for data operations
 
 ## 🗄️ Database Schema
@@ -118,7 +118,7 @@ struct ShoppingItem: ORMTable {
 
 ### 1. **Database Operations**
 ```swift
-// DatabaseManager handles all SQLiteORM operations
+// DatabaseManager handles all SwiftSync operations
 @MainActor
 class DatabaseManager: ObservableObject {
     private var orm: ORM?
@@ -273,7 +273,7 @@ class DatabaseManager: ObservableObject {
     @Published var shoppingLists: [ShoppingList] = []
     @Published var allItems: [ShoppingItem] = []
     
-    // Combine subscriptions using SQLiteORM's subscribe methods
+    // Combine subscriptions using SwiftSync's subscribe methods
     private var listSubscription: SimpleQuerySubscription<ShoppingList>?
     private var itemSubscription: SimpleQuerySubscription<ShoppingItem>?
     private var cancellables = Set<AnyCancellable>()
@@ -339,11 +339,11 @@ let itemsSubscription = await itemRepository.subscribe(query: itemsQuery)
 ## 🚀 Getting Started
 
 ### Dependencies
-This example uses the local SQLiteORM package. In Xcode:
-1. Add the local SQLiteORM package to your project
-2. Import SQLiteORM in your Swift files:
+This example uses the local SwiftSync package. In Xcode:
+1. Add the local SwiftSync package to your project
+2. Import SwiftSync in your Swift files:
 ```swift
-import SQLiteORM
+import SwiftSync
 ```
 
 ### Database Setup

@@ -5,7 +5,7 @@ import PackageDescription
 import CompilerPluginSupport
 
 let package = Package(
-    name: "SQLiteORM",
+    name: "SwiftSync",
     platforms: [
         .macOS(.v13),
         .iOS(.v16),
@@ -16,8 +16,8 @@ let package = Package(
     products: [
         // Main library product
         .library(
-            name: "SQLiteORM",
-            targets: ["SQLiteORM"]
+            name: "SwiftSync",
+            targets: ["SwiftSync"]
         ),
     ],
     dependencies: [
@@ -27,15 +27,15 @@ let package = Package(
     targets: [
         // Main library target
         .target(
-            name: "SQLiteORM",
-            dependencies: ["SQLiteORMMacros"],
+            name: "SwiftSync",
+            dependencies: ["SwiftSyncMacros"],
             linkerSettings: [
                 .linkedLibrary("sqlite3")
             ]
         ),
         // Macro implementations
         .macro(
-            name: "SQLiteORMMacros",
+            name: "SwiftSyncMacros",
             dependencies: [
                 .product(name: "SwiftSyntaxMacros", package: "swift-syntax"),
                 .product(name: "SwiftCompilerPlugin", package: "swift-syntax")
@@ -43,9 +43,9 @@ let package = Package(
         ),
         // Test target
         .testTarget(
-            name: "SQLiteORMTests",
+            name: "SwiftSyncTests",
             dependencies: [
-                "SQLiteORM"
+                "SwiftSync"
             ]
         ),
     ]

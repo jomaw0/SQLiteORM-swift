@@ -1,4 +1,4 @@
-# SQLiteORM
+# SwiftSync
 
 A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 
@@ -22,11 +22,11 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 
 ## Installation
 
-Add SQLiteORM to your `Package.swift`:
+Add SwiftSync to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/jomaw0/SQLiteORM-swift.git", from: "1.0.0")
+    .package(url: "https://github.com/jomaw0/SwiftSync.git", from: "1.0.0")
 ]
 ```
 
@@ -45,7 +45,7 @@ This prerelease version features a completely modernized API:
 ### Define a Table
 
 ```swift
-import SQLiteORM
+import SwiftSync
 
 @ORMTable
 struct User: ORMTable {
@@ -61,7 +61,7 @@ struct User: ORMTable {
 
 ### Database Initialization
 
-SQLiteORM provides multiple ways to initialize your database:
+SwiftSync provides multiple ways to initialize your database:
 
 ```swift
 // 1. Default database in Documents directory (creates app.sqlite)
@@ -118,7 +118,7 @@ let activeUsers = await userRepo.findAll(query: query)
 
 ### Convenient Table Creation
 
-SQLiteORM provides several convenient ways to create multiple tables:
+SwiftSync provides several convenient ways to create multiple tables:
 
 ```swift
 // 1. Variadic method for multiple tables
@@ -178,7 +178,7 @@ user1.hashValue == user2.hashValue  // false - different hash
 
 ### Data Synchronization
 
-SQLiteORM provides two powerful synchronization approaches to handle different real-world scenarios:
+SwiftSync provides two powerful synchronization approaches to handle different real-world scenarios:
 
 #### 🔄 **Sync vs SoftSync - When to Use Each**
 
@@ -219,7 +219,7 @@ let settingsResult = await AppSetting.sync(with: serverSettings, orm: orm)
 
 #### 📊 **Multi-Model SoftSync - The Game Changer**
 
-Real-world APIs often return complex responses with multiple data types. Instead of handling each model type separately, SQLiteORM's multi-model softSync lets you coordinate everything in a single, elegant call.
+Real-world APIs often return complex responses with multiple data types. Instead of handling each model type separately, SwiftSync's multi-model softSync lets you coordinate everything in a single, elegant call.
 
 ##### The Problem: Complex API Responses
 ```swift
@@ -256,7 +256,7 @@ let achievementsResult = await Achievement.softSync(with: response.achievements,
 // Handle individual errors for each model type... 😫
 ```
 
-##### ✨ SQLiteORM Multi-Model Approach (Clean & Powerful)
+##### ✨ SwiftSync Multi-Model Approach (Clean & Powerful)
 ```swift
 // Handle everything in one elegant call!
 let result = await orm.softSync(
@@ -470,7 +470,7 @@ let promotionResult = await Promotion.softSync(
 
 #### ⚔️ **Conflict Resolution Strategies**
 
-When the same item exists both locally and on the server, SQLiteORM provides flexible conflict resolution:
+When the same item exists both locally and on the server, SwiftSync provides flexible conflict resolution:
 
 ```swift
 // Available conflict resolution strategies
@@ -694,7 +694,7 @@ await orm.migrations.migrate(migrations)
 
 ### Query Builder
 
-SQLiteORM supports two query syntaxes - a fluent predicate-based syntax and the traditional builder pattern:
+SwiftSync supports two query syntaxes - a fluent predicate-based syntax and the traditional builder pattern:
 
 #### Predicate-Based Queries (Recommended)
 
@@ -772,7 +772,7 @@ let user = result.toOptional() // Logs error and returns optional
 
 ## Built-in Data Synchronization
 
-SQLiteORM includes comprehensive data synchronization capabilities. Every ORMTable model is automatically syncable with minimal setup and powerful conflict resolution.
+SwiftSync includes comprehensive data synchronization capabilities. Every ORMTable model is automatically syncable with minimal setup and powerful conflict resolution.
 
 ### Simple Sync (Minimal API)
 
@@ -952,7 +952,7 @@ if let fileURL = Bundle.main.url(forResource: "users", withExtension: "json"),
 
 ## Combine Integration (iOS 16.0+)
 
-SQLiteORM provides reactive data subscriptions using Combine, perfect for SwiftUI and reactive programming patterns.
+SwiftSync provides reactive data subscriptions using Combine, perfect for SwiftUI and reactive programming patterns.
 
 ### Basic Subscriptions
 
@@ -1017,7 +1017,7 @@ let count = await userRepo.query()
 
 ### Convenient Subscription Methods
 
-SQLiteORM provides many convenient subscription methods for common use cases:
+SwiftSync provides many convenient subscription methods for common use cases:
 
 ```swift
 // Existence subscriptions
@@ -1046,7 +1046,7 @@ let subscription = await userRepo.query()
 
 ### Date Query Convenience Methods
 
-SQLiteORM provides comprehensive date querying capabilities with intuitive, chainable methods:
+SwiftSync provides comprehensive date querying capabilities with intuitive, chainable methods:
 
 #### Basic Date Comparisons
 
