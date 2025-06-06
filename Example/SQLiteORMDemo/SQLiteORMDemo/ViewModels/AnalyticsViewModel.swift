@@ -5,10 +5,10 @@
 //  Created by Jonas Wolf on 06.06.25.
 //
 //  This ViewModel demonstrates the new SQLiteORM subscription features:
-//  - Reactive data subscriptions using Combine
-//  - Date-based analytics with Calendar operations
-//  - Real-time category statistics
-//  - Efficient data transformation using map/filter operations
+//  - Convenient subscription methods (subscribeCount, subscribeWhere)
+//  - Date query convenience methods (whereToday, whereThisWeek, whereLastDays)
+//  - Fluent query builder patterns with method chaining
+//  - Atomic setup subscriptions to prevent race conditions
 //  - MainActor usage for UI-safe operations
 //
 
@@ -39,87 +39,164 @@ class AnalyticsViewModel: ObservableObject {
     // MARK: - Subscription Setup
     func setupSubscriptions(databaseManager: DatabaseManager) {
         Task {
-            await setupSubscriptions(databaseManager: databaseManager)
+            await setupORMSubscriptions(databaseManager: databaseManager)
         }
     }
     
-    private func setupSubscriptions(databaseManager: DatabaseManager) async {
-        await setupBasicSubscriptions(databaseManager: databaseManager)
-        await setupDateBasedSubscriptions(databaseManager: databaseManager)
-        await setupCategorySubscriptions(databaseManager: databaseManager)
+    private func setupORMSubscriptions(databaseManager: DatabaseManager) async {
+        guard let listRepo = databaseManager.shoppingListRepository,
+              let itemRepo = databaseManager.shoppingItemRepository else {
+            print("⚠️ Repositories not ready yet")
+            return
+        }
+        
+        await setupBasicORMSubscriptions(listRepo: listRepo, itemRepo: itemRepo)
+        await setupDateBasedORMSubscriptions(listRepo: listRepo, itemRepo: itemRepo)
+        await setupAdvancedORMSubscriptions(listRepo: listRepo, itemRepo: itemRepo)
     }
     
-    // MARK: - Basic Subscriptions
-    private func setupBasicSubscriptions(databaseManager: DatabaseManager) async {
-        // Subscribe to the DatabaseManager's published properties
-        databaseManager.$shoppingLists
-            .map { $0.count }
+    // MARK: - Basic ORM Subscriptions (demonstrating convenient subscription methods)
+    private func setupBasicORMSubscriptions(listRepo: Repository<ShoppingList>, itemRepo: Repository<ShoppingItem>) async {
+        // 1. Using subscribeCount() convenience method
+        let totalListsSubscription = listRepo.subscribeCount()
+        totalListsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let count) = result {
+                    return count
+                }
+                return nil
+            }
             .assign(to: \.totalListsCount, on: self)
             .store(in: &cancellables)
         
-        databaseManager.$shoppingLists
-            .map { lists in lists.filter { $0.isActive }.count }
+        // 2. Using subscribeWhere() convenience method for active lists
+        let activeListsSubscription = listRepo.subscribeWhere("isActive", equals: true)
+        activeListsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let lists) = result {
+                    return lists.count
+                }
+                return nil
+            }
             .assign(to: \.activeListsCount, on: self)
             .store(in: &cancellables)
         
-        databaseManager.$shoppingItems
-            .map { $0.count }
+        // 3. Using subscribeCount() for total items
+        let totalItemsSubscription = itemRepo.subscribeCount()
+        totalItemsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let count) = result {
+                    return count
+                }
+                return nil
+            }
             .assign(to: \.totalItemsCount, on: self)
             .store(in: &cancellables)
         
-        databaseManager.$shoppingItems
-            .map { items in items.filter { $0.isChecked }.count }
+        // 4. Using subscribeWhere() for checked items
+        let checkedItemsSubscription = itemRepo.subscribeWhere("isChecked", equals: true)
+        checkedItemsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let items) = result {
+                    return items.count
+                }
+                return nil
+            }
             .assign(to: \.checkedItemsCount, on: self)
             .store(in: &cancellables)
         
-        databaseManager.$shoppingItems
-            .map { items in 
-                Array(items.sorted { $0.addedAt > $1.addedAt }.prefix(10))
+        // 5. Using fluent query builder with newestFirst() and limit()
+        let recentItemsSubscription = await itemRepo.query()
+            .newestFirst("addedAt")
+            .limit(10)
+            .subscribe()
+        
+        recentItemsSubscription.$result
+            .compactMap { result -> [ShoppingItem]? in
+                if case .success(let items) = result {
+                    return items
+                }
+                return nil
             }
             .assign(to: \.recentItems, on: self)
             .store(in: &cancellables)
     }
     
-    // MARK: - Date-based Subscriptions
-    private func setupDateBasedSubscriptions(databaseManager: DatabaseManager) async {
-        let calendar = Calendar.current
+    // MARK: - Date-based ORM Subscriptions (demonstrating new date query methods)
+    private func setupDateBasedORMSubscriptions(listRepo: Repository<ShoppingList>, itemRepo: Repository<ShoppingItem>) async {
+        // 1. Using whereToday() date convenience method
+        let todayListsSubscription = await listRepo.query()
+            .whereToday("createdAt")
+            .subscribeCount()
         
-        // Date-based filtering using existing data
-        databaseManager.$shoppingLists
-            .map { lists in
-                lists.filter { calendar.isDateInToday($0.createdAt) }.count
+        todayListsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let count) = result {
+                    return count
+                }
+                return nil
             }
             .assign(to: \.todayListsCount, on: self)
             .store(in: &cancellables)
         
-        databaseManager.$shoppingLists
-            .map { lists in
-                let weekInterval = calendar.dateInterval(of: .weekOfYear, for: Date()) ?? DateInterval()
-                return lists.filter { weekInterval.contains($0.createdAt) }.count
+        // 2. Using whereThisWeek() date convenience method
+        let thisWeekListsSubscription = await listRepo.query()
+            .whereThisWeek("createdAt")
+            .subscribeCount()
+        
+        thisWeekListsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let count) = result {
+                    return count
+                }
+                return nil
             }
             .assign(to: \.thisWeekListsCount, on: self)
             .store(in: &cancellables)
         
-        databaseManager.$shoppingLists
-            .map { lists in
-                let monthInterval = calendar.dateInterval(of: .month, for: Date()) ?? DateInterval()
-                return lists.filter { monthInterval.contains($0.createdAt) }.count
+        // 3. Using whereThisMonth() date convenience method
+        let thisMonthListsSubscription = await listRepo.query()
+            .whereThisMonth("createdAt")
+            .subscribeCount()
+        
+        thisMonthListsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let count) = result {
+                    return count
+                }
+                return nil
             }
             .assign(to: \.thisMonthListsCount, on: self)
             .store(in: &cancellables)
         
-        databaseManager.$shoppingItems
-            .map { items in
-                let sevenDaysAgo = calendar.date(byAdding: .day, value: -7, to: Date()) ?? Date()
-                return items.filter { $0.addedAt >= sevenDaysAgo }.count
+        // 4. Using whereLastDays() date convenience method
+        let lastSevenDaysItemsSubscription = await itemRepo.query()
+            .whereLastDays("addedAt", 7)
+            .subscribeCount()
+        
+        lastSevenDaysItemsSubscription.$result
+            .compactMap { result -> Int? in
+                if case .success(let count) = result {
+                    return count
+                }
+                return nil
             }
             .assign(to: \.lastSevenDaysItemsCount, on: self)
             .store(in: &cancellables)
     }
     
-    // MARK: - Category Subscriptions
-    private func setupCategorySubscriptions(databaseManager: DatabaseManager) async {
-        databaseManager.$shoppingItems
+    // MARK: - Advanced ORM Subscriptions (demonstrating category analytics)
+    private func setupAdvancedORMSubscriptions(listRepo: Repository<ShoppingList>, itemRepo: Repository<ShoppingItem>) async {
+        // Using subscribe() to get all items for category analysis
+        let allItemsSubscription = itemRepo.subscribe()
+        
+        allItemsSubscription.$result
+            .compactMap { result -> [ShoppingItem]? in
+                if case .success(let items) = result {
+                    return items
+                }
+                return nil
+            }
             .map { items in
                 // Group items by category and count them
                 let grouped = Dictionary(grouping: items, by: { $0.category })
@@ -136,39 +213,34 @@ class AnalyticsViewModel: ObservableObject {
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 extension AnalyticsViewModel {
     
-    /// This demonstrates the patterns we're using in a real implementation
-    /// Note: This is for documentation purposes - actual subscriptions use DatabaseManager data
+    /// This demonstrates the actual SQLiteORM subscription patterns we're using
     func demonstrateSubscriptionPatterns() {
         /*
-         In this Analytics view, we demonstrate several subscription patterns:
+         This Analytics view demonstrates real SQLiteORM subscription features:
          
-         1. Basic Count Subscriptions:
-            - Total lists/items count using .map on @Published properties
-            - Active lists count using filter operations
-            - Checked items count using filter operations
+         1. Convenient Subscription Methods:
+            - subscribeCount() for total counts
+            - subscribeWhere("column", equals: value) for filtered counts
+            - fluent query builder with .newestFirst().limit().subscribe()
          
-         2. Date-based Filtering:
-            - Today's lists using Calendar.isDateInToday()
-            - This week's lists using DateInterval
-            - This month's lists using DateInterval  
-            - Last 7 days items using date comparison
+         2. Date Query Convenience Methods:
+            - whereToday("createdAt") for today's records
+            - whereThisWeek("createdAt") for this week's records
+            - whereThisMonth("createdAt") for this month's records
+            - whereLastDays("addedAt", 7) for last N days
          
-         3. Category Analytics:
-            - Grouping items by category using Dictionary(grouping:by:)
-            - Sorting by count for analytics display
+         3. Fluent Query Builder Patterns:
+            - await repo.query().whereToday().subscribeCount()
+            - await repo.query().newestFirst().limit(10).subscribe()
+            - Method chaining for complex queries
          
-         4. Recent Items:
-            - Sorting by date and taking prefix for latest items
+         4. Subscription Types:
+            - subscribeCount() returns SimpleCountSubscription
+            - subscribeWhere() returns SimpleQuerySubscription
+            - subscribe() returns SimpleQuerySubscription
          
-         In a more advanced implementation, you could use the ORM's subscription methods directly:
-         
-         // Direct ORM subscriptions (requires ORM access):
-         // let todayItemsSubscription = await itemRepo.query().whereToday("addedAt").subscribe()
-         // let expensiveItemsSubscription = await itemRepo.query().where("price", ComparisonOperator.greaterThan, 50.0).subscribe()
-         // let existsSubscription = listRepo.subscribeExists()
-         // let latestSubscription = listRepo.subscribeLatest()
-         
-         But for this demo, we leverage the existing DatabaseManager subscriptions for efficiency.
+         All subscriptions use atomic setup to prevent race conditions and
+         automatically update the UI when data changes in the database.
          */
     }
 }

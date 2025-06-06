@@ -4,11 +4,11 @@
 //
 //  Created by Jonas Wolf on 06.06.25.
 //
-//  This view demonstrates various subscription and date query patterns:
-//  - Real-time analytics using Combine subscriptions
-//  - Date-based filtering (today, this week, this month, last 7 days)
-//  - Category breakdowns using grouping operations
-//  - Recent items display with sorting and limiting
+//  This view demonstrates the new SQLiteORM subscription and date query features:
+//  - Convenient subscription methods (subscribeCount, subscribeWhere)
+//  - Date query convenience methods (whereToday, whereThisWeek, whereLastDays)
+//  - Fluent query builder with method chaining
+//  - Real-time analytics using atomic ORM subscriptions
 //
 
 import SwiftUI

@@ -20,6 +20,11 @@ class DatabaseManager: ObservableObject {
     private var listRepository: Repository<ShoppingList>?
     private var itemRepository: Repository<ShoppingItem>?
     
+    // Public accessors for advanced features
+    var database: ORM? { orm }
+    var shoppingListRepository: Repository<ShoppingList>? { listRepository }
+    var shoppingItemRepository: Repository<ShoppingItem>? { itemRepository }
+    
     // Combine subscriptions for real-time updates
     private var listSubscription: QuerySubscription<ShoppingList>?
     private var itemSubscription: QuerySubscription<ShoppingItem>?
