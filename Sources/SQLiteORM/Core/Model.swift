@@ -34,6 +34,7 @@ public protocol ORMTable: Codable, Sendable, Identifiable, Hashable {
     static var uniqueConstraints: [ORMUniqueConstraint] { get }
     
     // MARK: - Sync Properties (automatically included in all models)
+    // Note: These are optional protocol requirements with default implementations
     
     /// Timestamp of last successful sync
     var lastSyncTimestamp: Date? { get set }
@@ -102,7 +103,8 @@ public extension ORMTable {
     
     // MARK: - Default Sync Implementations
     
-    /// Default sync properties (so existing models don't break)
+    /// Default sync property implementations for models that don't explicitly implement them
+    /// These can be overridden by models that explicitly declare these properties
     var lastSyncTimestamp: Date? {
         get { nil }
         set { /* Default implementation does nothing */ }
@@ -124,15 +126,24 @@ public extension ORMTable {
     }
     
     /// Default conflict fingerprint based on encoded model data
+    /// Uses the Codable protocol to generate a fingerprint from all model properties
     var conflictFingerprint: String {
+        // Use Codable to capture all properties of the model
         do {
             let encoder = JSONEncoder()
-            encoder.outputFormatting = .sortedKeys
+            encoder.outputFormatting = .sortedKeys // Ensure consistent ordering
+            encoder.dateEncodingStrategy = .secondsSince1970
             let data = try encoder.encode(self)
-            return String(data.hashValue)
+            
+            // Create a hash of the encoded data
+            return data.base64EncodedString().hashValue.description
         } catch {
-            // Fallback to UUID if encoding fails
-            return UUID().uuidString
+            // Fallback to simple fingerprint if encoding fails
+            let idString = String(describing: self.id)
+            let statusString = self.syncStatus.rawValue
+            let timestamp = self.lastSyncTimestamp?.timeIntervalSince1970.description ?? "nil"
+            let combined = "\(idString)_\(statusString)_\(timestamp)"
+            return String(combined.hashValue)
         }
     }
 }

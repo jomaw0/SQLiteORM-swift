@@ -29,6 +29,10 @@ struct MultiModelRelationshipSoftSyncTests {
             self.name = name
             self.email = email
             self.bio = bio
+            self.lastSyncTimestamp = nil
+            self.isDirty = false
+            self.syncStatus = .synced
+            self.serverID = nil
         }
     }
     
@@ -54,6 +58,10 @@ struct MultiModelRelationshipSoftSyncTests {
             self.name = name
             self.description = description
             self.color = color
+            self.lastSyncTimestamp = nil
+            self.isDirty = false
+            self.syncStatus = .synced
+            self.serverID = nil
         }
     }
     
@@ -87,6 +95,10 @@ struct MultiModelRelationshipSoftSyncTests {
             if isPublished {
                 self.publishedAt = Date()
             }
+            self.lastSyncTimestamp = nil
+            self.isDirty = false
+            self.syncStatus = .synced
+            self.serverID = nil
         }
     }
     
@@ -115,6 +127,10 @@ struct MultiModelRelationshipSoftSyncTests {
             self.authorId = authorId
             self.articleId = articleId
             self.isApproved = isApproved
+            self.lastSyncTimestamp = nil
+            self.isDirty = false
+            self.syncStatus = .synced
+            self.serverID = nil
         }
     }
     
@@ -138,6 +154,10 @@ struct MultiModelRelationshipSoftSyncTests {
             self.id = id
             self.name = name
             self.slug = slug
+            self.lastSyncTimestamp = nil
+            self.isDirty = false
+            self.syncStatus = .synced
+            self.serverID = nil
         }
     }
     
@@ -161,6 +181,10 @@ struct MultiModelRelationshipSoftSyncTests {
             self.id = id
             self.articleId = articleId
             self.tagId = tagId
+            self.lastSyncTimestamp = nil
+            self.isDirty = false
+            self.syncStatus = .synced
+            self.serverID = nil
         }
     }
     
@@ -223,12 +247,12 @@ struct MultiModelRelationshipSoftSyncTests {
     
     // MARK: - Setup Helper
     
-    private func setupDatabase() async -> ORM {
+    private func setupDatabase() async throws -> ORM {
         let orm = createInMemoryORM()
         
         let openResult = await orm.open()
         if case .failure(let error) = openResult {
-            Issue.record("Open failed: \(error)")
+            throw error
         }
         
         let createResult = await orm.createTables(
@@ -240,7 +264,7 @@ struct MultiModelRelationshipSoftSyncTests {
             ArticleTag.self
         )
         if case .failure(let error) = createResult {
-            Issue.record("Create tables failed: \(error)")
+            throw error
         }
         
         return orm
@@ -298,7 +322,7 @@ struct MultiModelRelationshipSoftSyncTests {
     
     @Test("Coordinated softSync establishes proper relationships")
     func testCoordinatedSoftSyncEstablishesRelationships() async throws {
-        let orm = await setupDatabase()
+        let orm = try await setupDatabase()
         defer { Task { _ = await orm.close() } }
         
         // Create related data with proper foreign key relationships
@@ -354,7 +378,7 @@ struct MultiModelRelationshipSoftSyncTests {
     
     @Test("Coordinated softSync preserves existing relationships during updates")
     func testCoordinatedSoftSyncPreservesExistingRelationships() async throws {
-        let orm = await setupDatabase()
+        let orm = try await setupDatabase()
         defer { Task { _ = await orm.close() } }
         
         let authorRepo = await orm.repository(for: Author.self)
@@ -434,7 +458,7 @@ struct MultiModelRelationshipSoftSyncTests {
     
     @Test("Coordinated softSync handles relationship changes correctly")
     func testCoordinatedSoftSyncHandlesRelationshipChanges() async throws {
-        let orm = await setupDatabase()
+        let orm = try await setupDatabase()
         defer { Task { _ = await orm.close() } }
         
         let authorRepo = await orm.repository(for: Author.self)
@@ -519,7 +543,7 @@ struct MultiModelRelationshipSoftSyncTests {
     
     @Test("Coordinated softSync handles deep relationship dependencies")
     func testCoordinatedSoftSyncDeepRelationshipDependencies() async throws {
-        let orm = await setupDatabase()
+        let orm = try await setupDatabase()
         defer { Task { _ = await orm.close() } }
         
         // Create complex data with multiple levels of relationships
@@ -624,7 +648,7 @@ struct MultiModelRelationshipSoftSyncTests {
     
     @Test("softSync preserves local-only data with relationships")
     func testSoftSyncPreservesLocalOnlyDataWithRelationships() async throws {
-        let orm = await setupDatabase()
+        let orm = try await setupDatabase()
         defer { Task { _ = await orm.close() } }
         
         let authorRepo = await orm.repository(for: Author.self)

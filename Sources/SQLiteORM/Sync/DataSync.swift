@@ -302,16 +302,25 @@ extension ORMTable {
             if let localModel = findMatchingLocal(serverModel, in: localByID) {
                 // Model exists locally - check for conflicts
                 if hasConflict(local: localModel, server: serverModel) {
-                    // Handle conflict
-                    let resolved = await resolveConflict(
-                        local: localModel,
-                        server: serverModel,
-                        resolution: conflictResolution,
-                        repository: repository
-                    )
-                    
-                    changes.conflicts += 1
-                    changes.updated.append(resolved)
+                    // Handle conflict based on resolution strategy
+                    switch conflictResolution {
+                    case .localWins:
+                        // For local wins, we keep the local version without counting it as a conflict
+                        // No update needed, local version stays as-is
+                        break
+                        
+                    default:
+                        // For other resolutions, resolve the conflict
+                        let resolved = await resolveConflict(
+                            local: localModel,
+                            server: serverModel,
+                            resolution: conflictResolution,
+                            repository: repository
+                        )
+                        
+                        changes.conflicts += 1
+                        changes.updated.append(resolved)
+                    }
                     
                 } else if !localModel.isDirty {
                     // No conflict, safe to update
@@ -434,16 +443,25 @@ extension ORMTable {
             if let localModel = findMatchingLocal(serverModel, in: localByID) {
                 // Model exists locally - check for conflicts
                 if hasConflict(local: localModel, server: serverModel) {
-                    // Handle conflict
-                    let resolved = await resolveConflict(
-                        local: localModel,
-                        server: serverModel,
-                        resolution: conflictResolution,
-                        repository: repository
-                    )
-                    
-                    changes.conflicts += 1
-                    changes.updated.append(resolved)
+                    // Handle conflict based on resolution strategy
+                    switch conflictResolution {
+                    case .localWins:
+                        // For local wins, we keep the local version without counting it as a conflict
+                        // No update needed, local version stays as-is
+                        break
+                        
+                    default:
+                        // For other resolutions, resolve the conflict
+                        let resolved = await resolveConflict(
+                            local: localModel,
+                            server: serverModel,
+                            resolution: conflictResolution,
+                            repository: repository
+                        )
+                        
+                        changes.conflicts += 1
+                        changes.updated.append(resolved)
+                    }
                     
                 } else if !localModel.isDirty {
                     // No conflict, safe to update

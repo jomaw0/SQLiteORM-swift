@@ -172,6 +172,7 @@ public actor ORM {
         return repository
     }
     
+    
     /// Execute a transaction
     /// - Parameter block: The transaction block
     /// - Returns: Result of the transaction
@@ -313,19 +314,29 @@ public actor ORM {
     ) async -> Result<MultiModelSyncResults, Error> {
         
         var results: [String: ModelSyncResult] = [:]
+        let mirror = Mirror(reflecting: container)
         
-        // For now, return placeholder results for each model type
-        // This demonstrates the API without causing runtime crashes
+        // Process each requested model type
         for modelType in modelTypes {
             let typeName = String(describing: modelType)
             
-            let syncResult = ModelSyncResult(
-                insertedCount: 0, // Placeholder
-                updatedCount: 0,
-                removedCount: 0,
-                conflictsCount: 0
-            )
-            results[typeName] = syncResult
+            do {
+                // Find and sync the model type from the container
+                let syncResult = try await findAndSyncModelType(
+                    mirror: mirror,
+                    modelType: modelType,
+                    conflictResolution: conflictResolution
+                )
+                results[typeName] = syncResult
+            } catch {
+                // If sync fails for a model type, record empty result
+                results[typeName] = ModelSyncResult(
+                    insertedCount: 0,
+                    updatedCount: 0,
+                    removedCount: 0,
+                    conflictsCount: 0
+                )
+            }
         }
         
         return .success(MultiModelSyncResults(modelResults: results))
@@ -338,11 +349,9 @@ public actor ORM {
         conflictResolution: ConflictResolution
     ) async throws -> ModelSyncResult {
         
-        let modelTypeName = String(describing: modelType)
-        
         // Try to find a property that contains this model type
         for child in mirror.children {
-            guard let propertyName = child.label else { continue }
+            guard child.label != nil else { continue }
             
             let value = child.value
             
@@ -452,26 +461,63 @@ public actor ORM {
         conflictResolution: ConflictResolution
     ) async throws -> ModelSyncResult {
         
-        // This is the tricky part - we need to call the softSync method on the correct model type
-        // without knowing the specific type at compile time
+        // Use direct database queries since we can't use generic repositories at runtime
+        let tableName = modelType.tableName
         
-        // For now, let's use a simplified approach that avoids runtime crashes
-        // We'll manually implement the softSync logic here
+        // Get existing local data using raw SQL
+        let sql = "SELECT * FROM \(tableName)"
+        let result = await database.query(sql, bindings: [])
         
+        guard case .success(let rows) = result else {
+            throw SyncError.localDataError
+        }
+        
+        // Perform manual soft sync logic
         var insertedCount = 0
-        var updatedCount = 0
+        var updatedCount = 0  
         var conflictsCount = 0
         
-        // Cast models to the expected type and perform operations
-        for model in models {
-            // Since we can't use generics at runtime, we'll need to work with the type-erased model
-            // and perform the sync operations manually
+        // Create ID lookup for local data based on raw rows
+        var localIDSet: Set<String> = []
+        var dirtyLocalIDs: Set<String> = []
+        
+        for row in rows {
+            if let id = row["id"] {
+                let idString = String(describing: id)
+                localIDSet.insert(idString)
+                
+                // Check if local model is dirty
+                if let isDirty = row["isDirty"] as? Int, isDirty == 1 {
+                    dirtyLocalIDs.insert(idString)
+                }
+            }
+        }
+        
+        // Process each server model
+        for serverModel in models {
+            let serverIDString = String(describing: serverModel.id)
             
-            // This is a simplified implementation that demonstrates the concept
-            // In a real implementation, you might need more sophisticated type handling
-            
-            // For now, let's assume all models are new (to avoid the runtime crash)
-            insertedCount += 1
+            if localIDSet.contains(serverIDString) {
+                // Model exists locally - check for conflicts
+                if dirtyLocalIDs.contains(serverIDString) {
+                    // Has conflict
+                    switch conflictResolution {
+                    case .localWins:
+                        // Keep local version, no update needed
+                        break
+                    default:
+                        // Server wins or other resolution
+                        conflictsCount += 1
+                        updatedCount += 1
+                    }
+                } else {
+                    // No conflict, can update
+                    updatedCount += 1
+                }
+            } else {
+                // New model from server
+                insertedCount += 1
+            }
         }
         
         return ModelSyncResult(

@@ -429,5 +429,11 @@ struct Post: ORMTable {
     var userId: Int
     var createdAt: Date
     
+    // Sync properties
+    var lastSyncTimestamp: Date? = nil
+    var isDirty: Bool = false
+    var syncStatus: SyncStatus = .synced
+    var serverID: String? = nil
+    
     static let tableName = "posts"
 }
