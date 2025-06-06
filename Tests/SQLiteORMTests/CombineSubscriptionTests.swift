@@ -607,6 +607,312 @@ struct CombineSubscriptionTests {
         }
     }
     
+    // MARK: - Shopping List Demo Scenario Tests
+    
+    /// Test shopping list model with similar structure to the demo app
+    @ORMTable
+    struct ShoppingList: ORMTable {
+        typealias IDType = Int
+        var id: Int = 0
+        var name: String
+        var createdAt: Date = Date()
+        var isActive: Bool = true
+    }
+    
+    /// Test shopping item model with similar structure to the demo app
+    @ORMTable
+    struct ShoppingItem: ORMTable {
+        typealias IDType = Int
+        var id: Int = 0
+        var listId: Int
+        var name: String
+        var quantity: Int = 1
+        var price: Double = 0.0
+        var isChecked: Bool = false
+        var category: String = "Other"
+        var addedAt: Date = Date()
+    }
+    
+    @Test("Demo App Scenario - Subscription Created Before Initial Data Load")
+    func testDemoAppSubscriptionScenario() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        // Create tables
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        let itemRepo = await orm.repository(for: ShoppingItem.self)
+        
+        let createListsResult = await listRepo.createTable()
+        #expect(createListsResult.isSuccess, "ShoppingList table should be created")
+        
+        let createItemsResult = await itemRepo.createTable()
+        #expect(createItemsResult.isSuccess, "ShoppingItem table should be created")
+        
+        // Step 1: Setup subscriptions BEFORE any data exists (mimicking demo app behavior)
+        let listSubscription = listRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingList>()
+                .where("isActive", .equal, true)
+                .orderBy("createdAt", ascending: false)
+        )
+        
+        let itemSubscription = itemRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingItem>()
+                .orderBy("addedAt", ascending: false)
+        )
+        
+        // Wait for initial subscription setup and first trigger (empty database)
+        try await Task.sleep(nanoseconds: 200_000_000)
+        
+        // Verify first trigger - should show empty results
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.isEmpty, "List subscription should start with empty results")
+            case .failure(let error):
+                Issue.record("List subscription should not fail initially: \(error)")
+            }
+            
+            switch itemSubscription.result {
+            case .success(let items):
+                #expect(items.isEmpty, "Item subscription should start with empty results")
+            case .failure(let error):
+                Issue.record("Item subscription should not fail initially: \(error)")
+            }
+        }
+        
+        // Step 2: Check if database is empty (mimicking loadInitialData)
+        let allListsResult = await listRepo.findAll()
+        let hasExistingData = switch allListsResult {
+        case .success(let lists): !lists.isEmpty
+        case .failure: false
+        }
+        
+        #expect(hasExistingData == false, "Database should be empty initially")
+        
+        // Step 3: Create sample data (mimicking createSampleData)
+        var sampleList = ShoppingList(name: "Grocery Shopping")
+        let createListResult = await listRepo.insert(&sampleList)
+        #expect(createListResult.isSuccess, "Sample list should be created successfully")
+        
+        // Add sample items to the list
+        let sampleItemsData = [
+            ("Apples", 6, 3.99, "Groceries"),
+            ("Bread", 1, 2.50, "Groceries"),
+            ("Milk", 1, 4.25, "Groceries")
+        ]
+        
+        var insertedItems: [ShoppingItem] = []
+        for (name, quantity, price, category) in sampleItemsData {
+            var item = ShoppingItem(
+                listId: sampleList.id,
+                name: name,
+                quantity: quantity,
+                price: price,
+                category: category
+            )
+            let result = await itemRepo.insert(&item)
+            #expect(result.isSuccess, "Sample item '\(name)' should be created successfully")
+            insertedItems.append(item)
+        }
+        
+        // Wait for reactive updates after data insertion
+        try await Task.sleep(nanoseconds: 300_000_000)
+        
+        // Step 4: Verify second trigger - should show the created data
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.count == 1, "List subscription should now contain 1 shopping list")
+                #expect(lists.first?.name == "Grocery Shopping", "List should have correct name")
+                #expect(lists.first?.isActive == true, "List should be active")
+                #expect(lists.first?.id == sampleList.id, "List should have correct ID")
+            case .failure(let error):
+                Issue.record("List subscription should show created data: \(error)")
+            }
+            
+            switch itemSubscription.result {
+            case .success(let items):
+                #expect(items.count == 3, "Item subscription should contain 3 shopping items")
+                #expect(items.allSatisfy { $0.listId == sampleList.id }, "All items should belong to the created list")
+                #expect(Set(items.map { $0.name }) == Set(["Apples", "Bread", "Milk"]), "Should contain all expected items")
+            case .failure(let error):
+                Issue.record("Item subscription should show created data: \(error)")
+            }
+        }
+        
+        // Step 5: Test incremental updates
+        var newItem = ShoppingItem(
+            listId: sampleList.id,
+            name: "Cheese",
+            quantity: 1,
+            price: 5.99,
+            category: "Groceries"
+        )
+        let newItemResult = await itemRepo.insert(&newItem)
+        #expect(newItemResult.isSuccess, "New item should be inserted successfully")
+        
+        // Wait for reactive update
+        try await Task.sleep(nanoseconds: 200_000_000)
+        
+        // Verify additional trigger and updated content
+        await MainActor.run {
+            switch itemSubscription.result {
+            case .success(let items):
+                #expect(items.count == 4, "Should now have 4 items including the new one")
+                #expect(items.contains { $0.name == "Cheese" }, "Should contain the newly added item")
+            case .failure(let error):
+                Issue.record("Item subscription should show new item: \(error)")
+            }
+        }
+    }
+    
+    @Test("Demo App Scenario - Multiple Sequential Data Operations")
+    func testDemoAppMultipleDataOperations() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        let itemRepo = await orm.repository(for: ShoppingItem.self)
+        
+        _ = await listRepo.createTable()
+        _ = await itemRepo.createTable()
+        
+        // Create subscriptions first
+        let listSubscription = listRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingList>()
+                .where("isActive", .equal, true)
+                .orderBy("createdAt", ascending: false)
+        )
+        
+        // Wait for initial empty trigger
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.isEmpty, "Should start with empty lists")
+            case .failure(let error):
+                Issue.record("List subscription should not fail initially: \(error)")
+            }
+        }
+        
+        // Perform multiple operations in sequence
+        var list1 = ShoppingList(name: "List 1")
+        _ = await listRepo.insert(&list1)
+        
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.count == 1, "Should have 1 list after first insert")
+                #expect(lists.first?.name == "List 1", "Should contain first list")
+            case .failure(let error):
+                Issue.record("List subscription should update after first insert: \(error)")
+            }
+        }
+        
+        var list2 = ShoppingList(name: "List 2")
+        _ = await listRepo.insert(&list2)
+        
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.count == 2, "Should have 2 lists after second insert")
+                #expect(Set(lists.map { $0.name }) == Set(["List 1", "List 2"]), "Should contain both lists")
+            case .failure(let error):
+                Issue.record("List subscription should update after second insert: \(error)")
+            }
+        }
+        
+        // Deactivate one list
+        list1.isActive = false
+        _ = await listRepo.update(list1)
+        
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Verify final state
+        await MainActor.run {
+            if case .success(let lists) = listSubscription.result {
+                #expect(lists.count == 1, "Should only show active list")
+                #expect(lists.first?.name == "List 2", "Should show the remaining active list")
+            }
+        }
+    }
+    
+    @Test("Demo App Scenario - Filtered Item Subscription by List")
+    func testDemoAppFilteredItemSubscription() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        let itemRepo = await orm.repository(for: ShoppingItem.self)
+        
+        _ = await listRepo.createTable()
+        _ = await itemRepo.createTable()
+        
+        // Create two lists
+        var list1 = ShoppingList(name: "Groceries")
+        var list2 = ShoppingList(name: "Electronics")
+        _ = await listRepo.insert(&list1)
+        _ = await listRepo.insert(&list2)
+        
+        // Create subscription for items in list1 only
+        let list1ItemSubscription = itemRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingItem>()
+                .where("listId", .equal, list1.id)
+                .orderBy("addedAt", ascending: false)
+        )
+        
+        // Wait for initial empty trigger
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        await MainActor.run {
+            if case .success(let items) = list1ItemSubscription.result {
+                #expect(items.isEmpty, "Should start empty for list1 items")
+            }
+        }
+        
+        // Add items to list1
+        var item1 = ShoppingItem(listId: list1.id, name: "Apples", category: "Groceries")
+        var item2 = ShoppingItem(listId: list1.id, name: "Bananas", category: "Groceries")
+        _ = await itemRepo.insert(&item1)
+        _ = await itemRepo.insert(&item2)
+        
+        // Add item to list2 (should not appear in list1 subscription)
+        var item3 = ShoppingItem(listId: list2.id, name: "Phone", category: "Electronics")
+        _ = await itemRepo.insert(&item3)
+        
+        // Wait for updates
+        try await Task.sleep(nanoseconds: 200_000_000)
+        
+        await MainActor.run {
+            if case .success(let items) = list1ItemSubscription.result {
+                #expect(items.count == 2, "Should show only items from list1")
+                #expect(items.allSatisfy { $0.listId == list1.id }, "All items should belong to list1")
+                #expect(Set(items.map { $0.name }) == Set(["Apples", "Bananas"]), "Should contain correct items")
+                #expect(!items.contains { $0.name == "Phone" }, "Should not contain items from other lists")
+            }
+        }
+    }
+    
     // MARK: - Advanced Edge Cases
     
     @Test("Empty Database Initial Subscription")
