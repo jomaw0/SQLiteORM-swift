@@ -17,6 +17,7 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 - 🔄 **Built-in sync** - every model automatically gets data synchronization capabilities
 - 🚀 **Easy to use** - just conform to `ORMTable` protocol and use `@ORMTable` macro
 - 🎨 **Clean API** - modern ORM-prefixed naming convention
+- ⚡ **Protocol conformances** - automatic `Identifiable`, `Hashable`, and `Codable` support with generic implementations
 
 ## Installation
 
@@ -138,6 +139,40 @@ case .success():
 case .failure(let error):
     print("Setup failed: \(error)")
 }
+```
+
+### Automatic Protocol Conformances
+
+All `ORMTable` models automatically conform to `Identifiable`, `Hashable`, and `Codable` with generic implementations:
+
+```swift
+@ORMTable
+struct User: ORMTable {
+    var id: Int = 0
+    var username: String
+    var email: String
+    var isActive: Bool = true
+    
+    // Automatically gets:
+    // - Identifiable (uses 'id' property)
+    // - Hashable (hashes ALL properties generically)
+    // - Codable (for JSON/database serialization)
+    // - Equatable (compares ALL properties generically)
+}
+
+// Use in Sets and as Dictionary keys
+let users: Set<User> = [user1, user2, user3]
+let userLookup: [User: String] = [user1: "admin", user2: "guest"]
+
+// Equality and hashing based on ALL properties
+let user1 = User(id: 1, username: "john", email: "john@example.com")
+let user2 = User(id: 1, username: "johnny", email: "john@example.com") // Different username
+
+user1 == user2  // false - different username even though same ID
+user1.hashValue == user2.hashValue  // false - different hash
+
+// Generic implementation uses Codable encoding for robust comparison
+// Automatically handles all property types: String, Int, Date, Bool, etc.
 ```
 
 ## Advanced Features

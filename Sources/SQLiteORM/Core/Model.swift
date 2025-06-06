@@ -12,9 +12,9 @@ public enum SyncStatus: String, Codable, CaseIterable, Sendable {
 /// The core protocol that all ORM tables must conform to
 /// Provides automatic SQL generation and type-safe database operations
 /// All ORMTable types are automatically syncable
-public protocol ORMTable: Codable, Sendable {
+public protocol ORMTable: Codable, Sendable, Identifiable, Hashable {
     /// The type used for the primary key
-    associatedtype IDType: Codable & Sendable & LosslessStringConvertible & Equatable
+    associatedtype IDType: Codable & Sendable & LosslessStringConvertible & Equatable & Hashable
     
     /// The primary key property
     var id: IDType { get set }
@@ -62,6 +62,43 @@ public extension ORMTable {
     static var indexes: [ORMIndex] { [] }
     
     static var uniqueConstraints: [ORMUniqueConstraint] { [] }
+    
+    // MARK: - Hashable Implementation
+    
+    /// Default hash implementation based on all Codable properties
+    /// Uses the encoded representation to ensure all properties are included
+    func hash(into hasher: inout Hasher) {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            encoder.dateEncodingStrategy = .secondsSince1970
+            let data = try encoder.encode(self)
+            hasher.combine(data)
+        } catch {
+            // Fallback to ID-based hashing if encoding fails
+            hasher.combine(self.id)
+        }
+    }
+    
+    // MARK: - Equatable Implementation
+    
+    /// Default equality implementation based on all Codable properties
+    /// Two models are considered equal if all their encoded properties are equal
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            encoder.dateEncodingStrategy = .secondsSince1970
+            
+            let lhsData = try encoder.encode(lhs)
+            let rhsData = try encoder.encode(rhs)
+            
+            return lhsData == rhsData
+        } catch {
+            // Fallback to ID-based comparison if encoding fails
+            return lhs.id == rhs.id
+        }
+    }
     
     // MARK: - Default Sync Implementations
     
