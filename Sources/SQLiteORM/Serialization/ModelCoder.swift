@@ -7,7 +7,9 @@ public struct ModelEncoder {
     /// - Returns: Dictionary of column names to values
     /// - Throws: EncodingError if encoding fails
     public func encode<T: ORMTable>(_ model: T) throws -> [String: SQLiteValue] {
-        let data = try JSONEncoder().encode(model)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        let data = try encoder.encode(model)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
         
         var result: [String: SQLiteValue] = [:]
@@ -90,26 +92,7 @@ public struct ModelDecoder {
         
         // Configure decoder for dates
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            
-            // Try to decode as TimeInterval (Unix timestamp)
-            if let timestamp = try? container.decode(Double.self) {
-                return Date(timeIntervalSince1970: timestamp)
-            }
-            
-            // Try to decode as ISO8601 string
-            if let dateString = try? container.decode(String.self) {
-                if let date = DateFormatter.iso8601Full.date(from: dateString) {
-                    return date
-                }
-                if let date = DateFormatter.iso8601.date(from: dateString) {
-                    return date
-                }
-            }
-            
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unable to decode Date")
-        }
+        decoder.dateDecodingStrategy = .secondsSince1970
         
         return try decoder.decode(T.self, from: jsonData)
     }

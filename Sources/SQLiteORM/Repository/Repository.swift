@@ -415,6 +415,126 @@ extension Repository {
     public nonisolated func subscribeCountQuery(query: ORMQueryBuilder<T>? = nil) -> CountSubscription<T> {
         return CountSubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
+    
+    // MARK: - Convenient Subscription Methods
+    
+    /// Subscribe to whether any models exist matching a query
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameter query: Optional query builder to filter the existence check
+    /// - Returns: A subscription that emits true/false when existence changes
+    public nonisolated func subscribeExists(query: ORMQueryBuilder<T>? = nil) -> ExistsSubscription<T> {
+        return ExistsSubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to whether a specific model exists by ID
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameter id: The ID to check for existence
+    /// - Returns: A subscription that emits true/false when the model's existence changes
+    public nonisolated func subscribeExists(id: T.IDType) -> ExistsSubscription<T> {
+        let query = ORMQueryBuilder<T>().where("id", .equal, id as? SQLiteConvertible)
+        return ExistsSubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to the latest (most recently created/updated) model
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameter orderBy: Column to order by (defaults to "id" for latest by ID)
+    /// - Returns: A subscription that emits the latest model when data changes
+    public nonisolated func subscribeLatest(orderBy column: String = "id") -> SingleQuerySubscription<T> {
+        let query = ORMQueryBuilder<T>().orderBy(column, ascending: false).limit(1)
+        return SingleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to the oldest (first created) model
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameter orderBy: Column to order by (defaults to "id" for oldest by ID)
+    /// - Returns: A subscription that emits the oldest model when data changes
+    public nonisolated func subscribeOldest(orderBy column: String = "id") -> SingleQuerySubscription<T> {
+        let query = ORMQueryBuilder<T>().orderBy(column, ascending: true).limit(1)
+        return SingleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to models where a specific column matches a value
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameters:
+    ///   - column: The column name to filter by
+    ///   - value: The value to match
+    /// - Returns: A subscription that emits matching models when data changes
+    public nonisolated func subscribeWhere(_ column: String, equals value: SQLiteConvertible) -> QuerySubscription<T> {
+        let query = ORMQueryBuilder<T>().where(column, .equal, value)
+        return QuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to models where a specific column contains a value (LIKE search)
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameters:
+    ///   - column: The column name to search in
+    ///   - pattern: The LIKE pattern to match
+    /// - Returns: A subscription that emits matching models when data changes
+    public nonisolated func subscribeWhere(_ column: String, contains pattern: String) -> QuerySubscription<T> {
+        let query = ORMQueryBuilder<T>().where(column, .like, "%\(pattern)%")
+        return QuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
+    }
+    
+    // MARK: - Relationship-Aware Subscription Methods
+    
+    /// Subscribe to related models via a foreign key relationship
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameters:
+    ///   - relatedType: The type of related models to subscribe to
+    ///   - foreignKey: The foreign key column name in the related table
+    ///   - value: The value to match against the foreign key
+    /// - Returns: A subscription that emits related models when data changes
+    public nonisolated func subscribeRelated<Related: ORMTable>(
+        _ relatedType: Related.Type,
+        foreignKey: String,
+        value: SQLiteConvertible
+    ) -> QuerySubscription<Related> {
+        let relatedRepository = Repository<Related>(
+            database: database,
+            changeNotifier: changeNotifier,
+            diskStorageManager: diskStorageManager,
+            relationshipManager: relationshipManager
+        )
+        let query = ORMQueryBuilder<Related>().where(foreignKey, .equal, value)
+        return QuerySubscription(repository: relatedRepository, query: query, changeNotifier: changeNotifier)
+    }
+    
+    /// Subscribe to related models for a specific parent model instance
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameters:
+    ///   - relatedType: The type of related models to subscribe to
+    ///   - foreignKey: The foreign key column name in the related table
+    ///   - parentId: The parent model's ID
+    /// - Returns: A subscription that emits related models when data changes
+    public nonisolated func subscribeRelated<Related: ORMTable>(
+        _ relatedType: Related.Type,
+        foreignKey: String,
+        parentId: T.IDType
+    ) -> QuerySubscription<Related> {
+        return subscribeRelated(relatedType, foreignKey: foreignKey, value: parentId as! SQLiteConvertible)
+    }
+    
+    /// Subscribe to the count of related models
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Parameters:
+    ///   - relatedType: The type of related models to count
+    ///   - foreignKey: The foreign key column name in the related table
+    ///   - parentId: The parent model's ID
+    /// - Returns: A subscription that emits the count of related models when data changes
+    public nonisolated func subscribeRelatedCount<Related: ORMTable>(
+        _ relatedType: Related.Type,
+        foreignKey: String,
+        parentId: T.IDType
+    ) -> CountSubscription<Related> {
+        let relatedRepository = Repository<Related>(
+            database: database,
+            changeNotifier: changeNotifier,
+            diskStorageManager: diskStorageManager,
+            relationshipManager: relationshipManager
+        )
+        let query = ORMQueryBuilder<Related>().where(foreignKey, .equal, parentId as! SQLiteConvertible)
+        return CountSubscription(repository: relatedRepository, query: query, changeNotifier: changeNotifier)
+    }
 }
 
 /// Helper struct to wrap SQLiteValue for SQLiteConvertible conformance

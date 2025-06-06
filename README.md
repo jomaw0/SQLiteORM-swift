@@ -358,6 +358,167 @@ let count = await userRepo.query()
     .count()
 ```
 
+### Convenient Subscription Methods
+
+SQLiteORM provides many convenient subscription methods for common use cases:
+
+```swift
+// Existence subscriptions
+let existsSubscription = await userRepo.subscribeExists() // Any users exist
+let userExistsSubscription = await userRepo.subscribeExists(id: 123) // Specific user exists
+
+// Latest/oldest subscriptions
+let latestUserSubscription = await userRepo.subscribeLatest() // Most recently created
+let oldestActiveUserSubscription = await userRepo.subscribeOldest(orderBy: "lastLogin")
+
+// Filtered subscriptions
+let activeUsersSubscription = await userRepo.subscribeWhere("isActive", equals: true)
+let searchSubscription = await userRepo.subscribeWhere("username", contains: "john")
+
+// Relationship subscriptions
+let userPostsSubscription = await userRepo.subscribeRelated(Post.self, foreignKey: "userId", parentId: userId)
+let postCountSubscription = await userRepo.subscribeRelatedCount(Post.self, foreignKey: "userId", parentId: userId)
+
+// Chained convenience methods
+let subscription = await userRepo.query()
+    .whereActive(true)
+    .belongsTo(organization)
+    .newestFirst()
+    .subscribeQuery()
+```
+
+### Date Query Convenience Methods
+
+SQLiteORM provides comprehensive date querying capabilities with intuitive, chainable methods:
+
+#### Basic Date Comparisons
+
+```swift
+// Before/after specific dates
+let users = await userRepo.query()
+    .whereBefore("createdAt", date: Date())
+    .findAll()
+
+let recentPosts = await postRepo.query()
+    .whereAfter("publishedAt", date: lastWeek)
+    .newestFirst()
+    .findAll()
+
+// On or before/after (inclusive)
+let subscription = await eventRepo.query()
+    .whereOnOrAfter("eventDate", date: Date())
+    .subscribeQuery()
+
+// Specific date (ignoring time)
+let todayEvents = await eventRepo.query()
+    .whereOnDate("eventDate", date: Date())
+    .findAll()
+```
+
+#### Relative Date Queries
+
+```swift
+// Today, yesterday, tomorrow
+let todayPosts = await postRepo.query().whereToday().findAll()
+let yesterdayEvents = await eventRepo.query().whereYesterday("eventDate").findAll()
+let tomorrowTasks = await taskRepo.query().whereTomorrow("dueDate").subscribeQuery()
+
+// This week, last week, next week
+let thisWeekSubscription = await postRepo.query().whereThisWeek().subscribeQuery()
+let lastWeekPosts = await postRepo.query().whereLastWeek().findAll()
+let nextWeekEvents = await eventRepo.query().whereNextWeek("eventDate").findAll()
+
+// Monthly queries
+let thisMonthData = await dataRepo.query().whereThisMonth().findAll()
+let lastMonthReports = await reportRepo.query().whereLastMonth("generatedAt").findAll()
+
+// Yearly queries
+let thisYearUsers = await userRepo.query().whereThisYear().findAll()
+let lastYearMetrics = await metricRepo.query().whereLastYear("recordedAt").findAll()
+```
+
+#### Time-Based Queries
+
+```swift
+// Last N days/hours/minutes
+let recentActivity = await activityRepo.query()
+    .whereLastDays(7)
+    .newestFirst()
+    .findAll()
+
+let hourlyMetrics = await metricRepo.query()
+    .whereLastHours(24)
+    .subscribeQuery()
+
+let recentAlerts = await alertRepo.query()
+    .whereLastMinutes(30)
+    .subscribeQuery()
+
+// Future queries
+let upcomingEvents = await eventRepo.query()
+    .whereNextDays(7)
+    .orderBy("eventDate")
+    .findAll()
+```
+
+#### Date Range Queries
+
+```swift
+// Within specific date ranges
+let dateRange = await postRepo.query()
+    .whereWithinDateRange("publishedAt", from: startDate, to: endDate)
+    .findAll()
+
+// Using the existing whereDateBetween method
+let rangeQuery = await userRepo.query()
+    .whereDateBetween("createdAt", from: startDate, to: endDate)
+    .subscribeQuery()
+```
+
+#### Date Component Queries
+
+```swift
+// Specific year, month, or weekday
+let posts2024 = await postRepo.query().whereYear("publishedAt", 2024).findAll()
+let januaryEvents = await eventRepo.query().whereMonth("eventDate", 1).findAll()
+let mondayTasks = await taskRepo.query().whereWeekday("dueDate", 2).findAll() // 2 = Monday
+
+// Weekend vs weekday queries
+let weekendActivity = await activityRepo.query().whereWeekend().subscribeQuery()
+let weekdayReports = await reportRepo.query().whereWeekdays("createdAt").findAll()
+```
+
+#### Advanced Chained Date Queries
+
+```swift
+// Complex date filtering with subscriptions
+let complexSubscription = await taskRepo.query()
+    .whereThisMonth("createdAt")
+    .whereAfter("dueDate", date: Date())
+    .whereActive(true)
+    .newestFirst("createdAt")
+    .subscribeQuery()
+
+// Multiple date conditions
+let filtered = await eventRepo.query()
+    .whereLastDays(30)
+    .whereOnOrAfter("eventDate", date: Date())
+    .whereWeekdays("eventDate")
+    .findAll()
+
+// Date queries with other filters
+let activeUsersPastWeek = await userRepo.query()
+    .whereLastWeek("lastLoginAt")
+    .whereActive(true)
+    .subscribeWhere("role", equals: "admin")
+```
+
+All date methods:
+- Default to `"createdAt"` column but accept custom column names
+- Work seamlessly with subscriptions and regular queries
+- Support method chaining for complex filters
+- Handle time zones automatically using the device's current calendar
+
 ### SwiftUI Integration
 
 ```swift
