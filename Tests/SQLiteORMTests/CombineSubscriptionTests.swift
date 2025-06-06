@@ -913,6 +913,488 @@ struct CombineSubscriptionTests {
         }
     }
     
+    // MARK: - Multiple Insert/Delete Operation Tests
+    
+    @Test("Multiple Sequential Inserts - Single Subscription")
+    func testMultipleSequentialInsertsSingleSubscription() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        _ = await listRepo.createTable()
+        
+        // Create subscription first
+        let listSubscription = listRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingList>()
+                .where("isActive", .equal, true)
+                .orderBy("name", ascending: true)
+        )
+        
+        // Wait for initial empty state
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.isEmpty, "Should start with empty lists")
+            case .failure(let error):
+                Issue.record("Initial subscription should not fail: \(error)")
+            }
+        }
+        
+        // Perform multiple sequential inserts
+        let listNames = ["Groceries", "Electronics", "Clothing", "Books", "Home Supplies"]
+        var insertedLists: [ShoppingList] = []
+        
+        for (index, name) in listNames.enumerated() {
+            var list = ShoppingList(name: name)
+            let insertResult = await listRepo.insert(&list)
+            #expect(insertResult.isSuccess, "Insert of '\(name)' should succeed")
+            insertedLists.append(list)
+            
+            // Wait for reactive update after each insert
+            try await Task.sleep(nanoseconds: 150_000_000)
+            
+            // Verify subscription reflects the current state
+            await MainActor.run {
+                switch listSubscription.result {
+                case .success(let lists):
+                    #expect(lists.count == index + 1, "Should have \(index + 1) lists after insert \(index + 1)")
+                    #expect(lists.map { $0.name }.sorted() == listNames.prefix(index + 1).sorted(), "Should contain correct lists up to index \(index)")
+                    #expect(lists.allSatisfy { $0.isActive }, "All lists should be active")
+                case .failure(let error):
+                    Issue.record("Subscription should update after insert \(index + 1): \(error)")
+                }
+            }
+        }
+        
+        // Verify final state has all lists
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.count == listNames.count, "Should have all \(listNames.count) lists")
+                #expect(Set(lists.map { $0.name }) == Set(listNames), "Should contain all expected lists")
+                #expect(lists.map { $0.name } == listNames.sorted(), "Should be ordered by name")
+            case .failure(let error):
+                Issue.record("Final state verification failed: \(error)")
+            }
+        }
+    }
+    
+    @Test("Multiple Sequential Deletes - Single Subscription")
+    func testMultipleSequentialDeletesSingleSubscription() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        _ = await listRepo.createTable()
+        
+        // Insert initial data
+        let listNames = ["Groceries", "Electronics", "Clothing", "Books", "Home Supplies"]
+        var insertedLists: [ShoppingList] = []
+        
+        for name in listNames {
+            var list = ShoppingList(name: name)
+            let insertResult = await listRepo.insert(&list)
+            #expect(insertResult.isSuccess, "Initial insert of '\(name)' should succeed")
+            insertedLists.append(list)
+        }
+        
+        // Create subscription after data exists
+        let listSubscription = listRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingList>()
+                .where("isActive", .equal, true)
+                .orderBy("name", ascending: true)
+        )
+        
+        // Wait for initial load
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.count == listNames.count, "Should initially load all lists")
+            case .failure(let error):
+                Issue.record("Initial load should not fail: \(error)")
+            }
+        }
+        
+        // Perform multiple sequential deletes
+        for (index, list) in insertedLists.enumerated() {
+            let deleteResult = await listRepo.delete(id: list.id)
+            #expect(deleteResult.isSuccess, "Delete of '\(list.name)' should succeed")
+            
+            // Wait for reactive update after each delete
+            try await Task.sleep(nanoseconds: 150_000_000)
+            
+            let remainingCount = listNames.count - (index + 1)
+            let remainingNames = Set(insertedLists.dropFirst(index + 1).map { $0.name })
+            
+            // Verify subscription reflects the current state
+            await MainActor.run {
+                switch listSubscription.result {
+                case .success(let lists):
+                    #expect(lists.count == remainingCount, "Should have \(remainingCount) lists after delete \(index + 1)")
+                    #expect(Set(lists.map { $0.name }) == remainingNames, "Should contain correct remaining lists")
+                    #expect(!lists.contains { $0.id == list.id }, "Deleted list should not appear")
+                case .failure(let error):
+                    Issue.record("Subscription should update after delete \(index + 1): \(error)")
+                }
+            }
+        }
+        
+        // Verify final state is empty
+        await MainActor.run {
+            switch listSubscription.result {
+            case .success(let lists):
+                #expect(lists.isEmpty, "Should have no lists after all deletes")
+            case .failure(let error):
+                Issue.record("Final empty state verification failed: \(error)")
+            }
+        }
+    }
+    
+    @Test("Mixed Insert/Delete Operations - Multiple Subscriptions")
+    func testMixedOperationsMultipleSubscriptions() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        let itemRepo = await orm.repository(for: ShoppingItem.self)
+        _ = await listRepo.createTable()
+        _ = await itemRepo.createTable()
+        
+        // Create multiple subscriptions with different filters
+        let allListsSubscription = listRepo.subscribe()
+        let activeListsSubscription = listRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingList>().where("isActive", .equal, true)
+        )
+        let allItemsSubscription = itemRepo.subscribe()
+        let countSubscription = listRepo.subscribeCount()
+        
+        // Wait for initial setup
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Verify all subscriptions start empty
+        await MainActor.run {
+            if case .success(let lists) = allListsSubscription.result {
+                #expect(lists.isEmpty, "All lists subscription should start empty")
+            }
+            if case .success(let lists) = activeListsSubscription.result {
+                #expect(lists.isEmpty, "Active lists subscription should start empty")
+            }
+            if case .success(let items) = allItemsSubscription.result {
+                #expect(items.isEmpty, "All items subscription should start empty")
+            }
+            if case .success(let count) = countSubscription.result {
+                #expect(count == 0, "Count subscription should start at 0")
+            }
+        }
+        
+        // Step 1: Insert multiple lists
+        var list1 = ShoppingList(name: "Groceries")
+        var list2 = ShoppingList(name: "Electronics")
+        _ = await listRepo.insert(&list1)
+        _ = await listRepo.insert(&list2)
+        
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let lists) = allListsSubscription.result {
+                #expect(lists.count == 2, "All lists should show 2 lists")
+            }
+            if case .success(let lists) = activeListsSubscription.result {
+                #expect(lists.count == 2, "Active lists should show 2 lists")
+            }
+            if case .success(let count) = countSubscription.result {
+                #expect(count == 2, "Count should be 2")
+            }
+        }
+        
+        // Step 2: Insert items for both lists
+        var item1 = ShoppingItem(listId: list1.id, name: "Apples", category: "Groceries")
+        var item2 = ShoppingItem(listId: list1.id, name: "Bananas", category: "Groceries")
+        var item3 = ShoppingItem(listId: list2.id, name: "Phone", category: "Electronics")
+        
+        _ = await itemRepo.insert(&item1)
+        _ = await itemRepo.insert(&item2)
+        _ = await itemRepo.insert(&item3)
+        
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let items) = allItemsSubscription.result {
+                #expect(items.count == 3, "Should have 3 items total")
+                #expect(Set(items.map { $0.name }) == Set(["Apples", "Bananas", "Phone"]), "Should contain all items")
+            }
+        }
+        
+        // Step 3: Deactivate one list (mixed update operation)
+        list1.isActive = false
+        _ = await listRepo.update(list1)
+        
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let allLists) = allListsSubscription.result {
+                #expect(allLists.count == 2, "All lists should still show 2 lists")
+            }
+            if case .success(let activeLists) = activeListsSubscription.result {
+                #expect(activeLists.count == 1, "Active lists should now show 1 list")
+                #expect(activeLists.first?.name == "Electronics", "Should only show Electronics list")
+            }
+            if case .success(let count) = countSubscription.result {
+                #expect(count == 2, "Total count should still be 2")
+            }
+        }
+        
+        // Step 4: Delete items from deactivated list
+        _ = await itemRepo.delete(id: item1.id)
+        _ = await itemRepo.delete(id: item2.id)
+        
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let items) = allItemsSubscription.result {
+                #expect(items.count == 1, "Should have 1 item remaining")
+                #expect(items.first?.name == "Phone", "Should only have Phone item")
+            }
+        }
+        
+        // Step 5: Delete the remaining list
+        _ = await listRepo.delete(id: list2.id)
+        
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let allLists) = allListsSubscription.result {
+                #expect(allLists.count == 1, "All lists should show 1 list (deactivated)")
+            }
+            if case .success(let activeLists) = activeListsSubscription.result {
+                #expect(activeLists.isEmpty, "Active lists should be empty")
+            }
+            if case .success(let count) = countSubscription.result {
+                #expect(count == 1, "Count should be 1")
+            }
+        }
+        
+        // Step 6: Delete the final list
+        _ = await listRepo.delete(id: list1.id)
+        
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        // Verify all subscriptions return to empty state
+        await MainActor.run {
+            if case .success(let allLists) = allListsSubscription.result {
+                #expect(allLists.isEmpty, "All lists should be empty")
+            }
+            if case .success(let activeLists) = activeListsSubscription.result {
+                #expect(activeLists.isEmpty, "Active lists should be empty")
+            }
+            if case .success(let items) = allItemsSubscription.result {
+                #expect(items.count == 1, "Items should still show orphaned phone item")
+            }
+            if case .success(let count) = countSubscription.result {
+                #expect(count == 0, "Count should be 0")
+            }
+        }
+    }
+    
+    @Test("Rapid Batch Insert/Delete Operations")
+    func testRapidBatchOperations() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        _ = await listRepo.createTable()
+        
+        // Create subscription
+        let subscription = listRepo.subscribe(
+            query: ORMQueryBuilder<ShoppingList>()
+                .where("isActive", .equal, true)
+                .orderBy("createdAt", ascending: false)
+        )
+        
+        // Wait for initial state
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Rapid batch insert (10 lists in quick succession)
+        var insertedLists: [ShoppingList] = []
+        for i in 0..<10 {
+            var list = ShoppingList(name: "List \(i)")
+            let result = await listRepo.insert(&list)
+            #expect(result.isSuccess, "Batch insert \(i) should succeed")
+            insertedLists.append(list)
+            
+            // Very short delay to simulate rapid operations
+            try await Task.sleep(nanoseconds: 20_000_000) // 20ms
+        }
+        
+        // Wait for all reactive updates to settle
+        try await Task.sleep(nanoseconds: 300_000_000)
+        
+        await MainActor.run {
+            switch subscription.result {
+            case .success(let lists):
+                #expect(lists.count == 10, "Should have all 10 inserted lists")
+                #expect(Set(lists.map { $0.name }) == Set((0..<10).map { "List \($0)" }), "Should contain all expected lists")
+            case .failure(let error):
+                Issue.record("Batch insert should result in 10 lists: \(error)")
+            }
+        }
+        
+        // Rapid batch delete (delete every other list)
+        for i in stride(from: 0, to: 10, by: 2) {
+            let result = await listRepo.delete(id: insertedLists[i].id)
+            #expect(result.isSuccess, "Batch delete \(i) should succeed")
+            
+            // Very short delay
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        
+        // Wait for all deletes to settle
+        try await Task.sleep(nanoseconds: 300_000_000)
+        
+        await MainActor.run {
+            switch subscription.result {
+            case .success(let lists):
+                #expect(lists.count == 5, "Should have 5 remaining lists after batch delete")
+                let expectedNames = Set([1, 3, 5, 7, 9].map { "List \($0)" })
+                #expect(Set(lists.map { $0.name }) == expectedNames, "Should contain correct remaining lists")
+            case .failure(let error):
+                Issue.record("Batch delete should result in 5 lists: \(error)")
+            }
+        }
+    }
+    
+    @Test("Concurrent Insert/Delete with Multiple Table Subscriptions")
+    func testConcurrentOperationsMultipleTables() async throws {
+        guard #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) else {
+            return // Skip test on older platforms
+        }
+        
+        let orm = createInMemoryORM()
+        let openResult = await orm.open()
+        #expect(openResult.isSuccess, "ORM should open successfully")
+        
+        let listRepo = await orm.repository(for: ShoppingList.self)
+        let itemRepo = await orm.repository(for: ShoppingItem.self)
+        _ = await listRepo.createTable()
+        _ = await itemRepo.createTable()
+        
+        // Create subscriptions for both tables
+        let listSubscription = listRepo.subscribe()
+        let itemSubscription = itemRepo.subscribe()
+        
+        // Wait for initial setup
+        try await Task.sleep(nanoseconds: 100_000_000)
+        
+        // Concurrent operations on both tables
+        var list1 = ShoppingList(name: "List 1")
+        var list2 = ShoppingList(name: "List 2")
+        
+        // Insert lists
+        async let insert1 = listRepo.insert(&list1)
+        async let insert2 = listRepo.insert(&list2)
+        
+        let (result1, result2) = await (insert1, insert2)
+        #expect(result1.isSuccess && result2.isSuccess, "Concurrent list inserts should succeed")
+        
+        // Wait for updates
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let lists) = listSubscription.result {
+                #expect(lists.count == 2, "Should have 2 lists after concurrent inserts")
+            }
+        }
+        
+        // Insert items for different lists sequentially to ensure predictable IDs
+        var item1 = ShoppingItem(listId: list1.id, name: "Item 1A")
+        var item2 = ShoppingItem(listId: list1.id, name: "Item 1B") 
+        var item3 = ShoppingItem(listId: list2.id, name: "Item 2A")
+        var item4 = ShoppingItem(listId: list2.id, name: "Item 2B")
+        
+        let ir1 = await itemRepo.insert(&item1)
+        let ir2 = await itemRepo.insert(&item2)
+        let ir3 = await itemRepo.insert(&item3) 
+        let ir4 = await itemRepo.insert(&item4)
+        
+        #expect(ir1.isSuccess && ir2.isSuccess && ir3.isSuccess && ir4.isSuccess, "Item inserts should succeed")
+        
+        // Wait for updates
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let items) = itemSubscription.result {
+                #expect(items.count == 4, "Should have 4 items after concurrent inserts")
+                #expect(Set(items.map { $0.name }) == Set(["Item 1A", "Item 1B", "Item 2A", "Item 2B"]), "Should contain all items")
+            }
+        }
+        
+        // Delete specific items and verify which ones remain
+        let deleteResult1 = await itemRepo.delete(id: item1.id)  // Delete "Item 1A"
+        let deleteResult3 = await itemRepo.delete(id: item3.id)  // Delete "Item 2A"
+        #expect(deleteResult1.isSuccess, "Delete of Item 1A should succeed")
+        #expect(deleteResult3.isSuccess, "Delete of Item 2A should succeed")
+        
+        try await Task.sleep(nanoseconds: 150_000_000)
+        
+        await MainActor.run {
+            if case .success(let items) = itemSubscription.result {
+                #expect(items.count == 2, "Should have 2 items after deleting 2 items")
+                let itemNames = Set(items.map { $0.name })
+                // Should have Item 1B and Item 2B remaining
+                #expect(itemNames.contains("Item 1B"), "Should contain Item 1B")
+                #expect(itemNames.contains("Item 2B"), "Should contain Item 2B")
+                #expect(!itemNames.contains("Item 1A"), "Should not contain deleted Item 1A")
+                #expect(!itemNames.contains("Item 2A"), "Should not contain deleted Item 2A")
+            }
+        }
+        
+        // Now delete list2
+        _ = await listRepo.delete(id: list2.id)
+        
+        // Wait for final updates
+        try await Task.sleep(nanoseconds: 200_000_000)
+        
+        await MainActor.run {
+            if case .success(let lists) = listSubscription.result {
+                #expect(lists.count == 1, "Should have 1 list remaining")
+                let remainingListName = lists.first?.name
+                #expect(remainingListName == "List 1" || remainingListName == "List 2", "Should be one of the created lists")
+            }
+            if case .success(let items) = itemSubscription.result {
+                // After deleting one list, should have items from remaining list plus potentially orphaned items
+                #expect(items.count >= 1, "Should have at least 1 item remaining")
+                let itemNames = Set(items.map { $0.name })
+                // Should contain items that weren't deleted
+                let hasValidItems = itemNames.contains("Item 1B") || itemNames.contains("Item 2B")
+                #expect(hasValidItems, "Should contain at least one of the remaining items")
+            }
+        }
+    }
+    
     // MARK: - Advanced Edge Cases
     
     @Test("Empty Database Initial Subscription")
