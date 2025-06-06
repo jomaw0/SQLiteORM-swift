@@ -163,20 +163,20 @@ public struct QueryBuilderWithRepository<T: ORMTable>: Sendable {
     
     /// Subscribe to this query's results
     /// - Returns: A subscription that emits updated query results when data changes
-    public func subscribe() -> SimpleQuerySubscription<T> {
-        return repository.subscribe(query: queryBuilder)
+    public func subscribe() async -> SimpleQuerySubscription<T> {
+        return await repository.subscribe(query: queryBuilder)
     }
     
     /// Subscribe to the first result of this query
     /// - Returns: A subscription that emits the first updated query result when data changes
-    public func subscribeFirst() -> SimpleSingleQuerySubscription<T> {
-        return repository.subscribeFirst(query: queryBuilder)
+    public func subscribeFirst() async -> SimpleSingleQuerySubscription<T> {
+        return await repository.subscribeFirst(query: queryBuilder)
     }
     
     /// Subscribe to the count of results for this query
     /// - Returns: A subscription that emits updated count when data changes
-    public func subscribeCount() -> SimpleCountSubscription<T> {
-        return repository.subscribeCount(query: queryBuilder)
+    public func subscribeCount() async -> SimpleCountSubscription<T> {
+        return await repository.subscribeCount(query: queryBuilder)
     }
     
     /// Get the underlying QueryBuilder for compatibility

@@ -81,7 +81,7 @@ class DatabaseManager: ObservableObject {
               let itemRepository = itemRepository else { return }
         
         // Subscribe to all active lists
-        listSubscription = listRepository.subscribe(
+        listSubscription = await listRepository.subscribe(
             query: ORMQueryBuilder<ShoppingList>()
                 .where("isActive", .equal, true)
                 .orderBy("createdAt", ascending: false)
@@ -90,8 +90,10 @@ class DatabaseManager: ObservableObject {
         listSubscription?.$result
             .compactMap { result -> [ShoppingList]? in
                 if case .success(let lists) = result {
+                    print("📋 List subscription received \(lists.count) lists")
                     return lists
                 }
+                print("❌ List subscription error: \(result)")
                 return nil
             }
             .receive(on: DispatchQueue.main)
@@ -99,7 +101,7 @@ class DatabaseManager: ObservableObject {
             .store(in: &cancellables)
         
         // Subscribe to all items
-        itemSubscription = itemRepository.subscribe(
+        itemSubscription = await itemRepository.subscribe(
             query: ORMQueryBuilder<ShoppingItem>()
                 .orderBy("addedAt", ascending: false)
         )
@@ -107,8 +109,10 @@ class DatabaseManager: ObservableObject {
         itemSubscription?.$result
             .compactMap { result -> [ShoppingItem]? in
                 if case .success(let items) = result {
+                    print("🛒 Item subscription received \(items.count) items")
                     return items
                 }
+                print("❌ Item subscription error: \(result)")
                 return nil
             }
             .receive(on: DispatchQueue.main)
@@ -135,10 +139,12 @@ class DatabaseManager: ObservableObject {
     
     @MainActor
     private func createSampleData() async {
+        print("🏗️ Creating sample data...")
         var sampleList = ShoppingList(name: "Grocery Shopping")
         let result = await createList(&sampleList)
         
         if case .success = result {
+            print("✅ Sample list created with ID: \(sampleList.id)")
             // Add some sample items
             let sampleItems = [
                 ShoppingItem(listId: sampleList.id, name: "Apples", quantity: 6, price: 3.99, category: "Groceries"),
@@ -147,8 +153,12 @@ class DatabaseManager: ObservableObject {
             ]
             
             for var item in sampleItems {
-                _ = await createItem(&item)
+                let itemResult = await createItem(&item)
+                if case .success = itemResult {
+                    print("✅ Sample item created: \(item.name)")
+                }
             }
+            print("🎉 Sample data creation completed")
         }
     }
 }
