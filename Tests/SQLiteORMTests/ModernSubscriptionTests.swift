@@ -171,22 +171,22 @@ struct ModernSubscriptionTests {
         }
     }
     
-    @Test("Backward compatibility with deprecated methods")
-    func testBackwardCompatibility() async throws {
+    @Test("Original and new subscription APIs work together")
+    func testOriginalAndNewAPIsTogether() async throws {
         let orm = await setupDatabase()
         defer { Task { _ = await orm.close() } }
         
         let repo = await orm.repository(for: User.self)
         
-        // Test that old methods still work (with deprecation warnings)
-        let oldSubscription = repo.subscribe()
-        let oldSingleSubscription = repo.subscribe(id: 1)
-        let oldCountSubscription = repo.subscribeCount()
+        // Test that original methods still work alongside new methods
+        let originalSubscription = repo.subscribe()
+        let originalSingleSubscription = repo.subscribe(id: 1)
+        let originalCountSubscription = repo.subscribeCount()
         
-        // Verify the types are still the old ones
-        #expect(type(of: oldSubscription) == SimpleQuerySubscription<User>.self, "Should return SimpleQuerySubscription")
-        #expect(type(of: oldSingleSubscription) == SimpleSingleQuerySubscription<User>.self, "Should return SimpleSingleQuerySubscription")
-        #expect(type(of: oldCountSubscription) == SimpleCountSubscription<User>.self, "Should return SimpleCountSubscription")
+        // Verify the types are the original ones
+        #expect(type(of: originalSubscription) == SimpleQuerySubscription<User>.self, "Should return SimpleQuerySubscription")
+        #expect(type(of: originalSingleSubscription) == SimpleSingleQuerySubscription<User>.self, "Should return SimpleSingleQuerySubscription")
+        #expect(type(of: originalCountSubscription) == SimpleCountSubscription<User>.self, "Should return SimpleCountSubscription")
         
         // Test that they still function correctly
         var user = User(
@@ -202,18 +202,18 @@ struct ModernSubscriptionTests {
         // Give subscriptions time to update
         try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
         
-        // Verify old subscriptions still work
+        // Verify original subscriptions still work
         await MainActor.run {
-            switch oldSubscription.result {
+            switch originalSubscription.result {
             case .success(let users):
-                #expect(users.count >= 1, "Old subscription should work")
+                #expect(users.count >= 1, "Original subscription should work")
             case .failure(let error):
-                Issue.record("Old subscription failed: \(error)")
+                Issue.record("Original subscription failed: \(error)")
             }
         }
     }
     
-    @Test("Query-based subscriptions work with new API")
+    @Test("Query builder chaining with subscriptions")
     func testQueryBasedSubscriptions() async throws {
         let orm = await setupDatabase()
         defer { Task { _ = await orm.close() } }
@@ -280,6 +280,120 @@ struct ModernSubscriptionTests {
                 #expect(count == 1, "Should count only active user")
             case .failure(let error):
                 Issue.record("Active count subscription failed: \(error)")
+            }
+        }
+    }
+    
+    @Test("Repository.query() pattern with subscription chaining")
+    func testModelQuerySubscriptionPattern() async throws {
+        let orm = await setupDatabase()
+        defer { Task { _ = await orm.close() } }
+        
+        // Insert test data
+        var user1 = User(
+            username: "chaintest1",
+            email: "chain1@example.com",
+            firstName: "Chain",
+            lastName: "Test1",
+            createdAt: Date(),
+            isActive: true
+        )
+        
+        var user2 = User(
+            username: "chaintest2",
+            email: "chain2@example.com",
+            firstName: "Chain",
+            lastName: "Test2",
+            createdAt: Date(),
+            isActive: false
+        )
+        
+        var user3 = User(
+            username: "othertest",
+            email: "other@example.com",
+            firstName: "Other",
+            lastName: "Test",
+            createdAt: Date(),
+            isActive: true
+        )
+        
+        let repo = await orm.repository(for: User.self)
+        _ = await repo.insert(&user1)
+        _ = await repo.insert(&user2)
+        _ = await repo.insert(&user3)
+        
+        // Test repository.query() pattern with new subscription methods
+        let activeUsersSubscription = await repo.query()
+            .where("isActive", .equal, true)
+            .orderBy("username")
+            .subscribeQuery()
+        
+        let firstChainUserSubscription = await repo.query()
+            .where("username", .like, "chain%")
+            .orderBy("username")
+            .subscribeSingle()
+        
+        let activeCountSubscription = await repo.query()
+            .where("isActive", .equal, true)
+            .subscribeCountQuery()
+        
+        // Give subscriptions time to load
+        try await Task.sleep(nanoseconds: 150_000_000) // 0.15 seconds
+        
+        // Verify results
+        await MainActor.run {
+            // Check query subscription
+            switch activeUsersSubscription.result {
+            case .success(let users):
+                #expect(users.count == 2, "Should find 2 active users")
+                #expect(users[0].username == "chaintest1", "Should be ordered by username")
+                #expect(users[1].username == "othertest", "Should be ordered by username")
+            case .failure(let error):
+                Issue.record("Active users subscription failed: \(error)")
+            }
+            
+            // Check single subscription
+            switch firstChainUserSubscription.result {
+            case .success(let user):
+                #expect(user != nil, "Should find first chain user")
+                #expect(user?.username == "chaintest1", "Should be first chain user alphabetically")
+            case .failure(let error):
+                Issue.record("First chain user subscription failed: \(error)")
+            }
+            
+            // Check count subscription
+            switch activeCountSubscription.result {
+            case .success(let count):
+                #expect(count == 2, "Should count 2 active users")
+            case .failure(let error):
+                Issue.record("Active count subscription failed: \(error)")
+            }
+        }
+        
+        // Test that original methods still work alongside new methods
+        let oldSubscription = await repo.query()
+            .where("isActive", .equal, false)
+            .subscribe()
+        
+        let _ = await repo.query()
+            .where("isActive", .equal, false)
+            .subscribeFirst()
+        
+        let _ = await repo.query()
+            .where("isActive", .equal, false)
+            .subscribeCount()
+        
+        // Give original subscriptions time to load
+        try await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+        
+        // Verify original methods still work
+        await MainActor.run {
+            switch oldSubscription.result {
+            case .success(let users):
+                #expect(users.count == 1, "Original subscription should find 1 inactive user")
+                #expect(users.first?.username == "chaintest2", "Should find the inactive user")
+            case .failure(let error):
+                Issue.record("Original subscription failed: \(error)")
             }
         }
     }

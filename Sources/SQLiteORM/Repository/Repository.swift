@@ -375,7 +375,7 @@ extension Repository {
         return SimpleCountSubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
     
-    // MARK: - Modern Subscription API (Preferred)
+    // MARK: - Alternative Subscription API (Different Return Types)
     
     /// Subscribe to changes for all models in this repository
     /// Uses atomic setup to eliminate race conditions - no await needed!

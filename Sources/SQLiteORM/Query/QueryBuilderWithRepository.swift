@@ -182,6 +182,29 @@ public struct QueryBuilderWithRepository<T: ORMTable>: Sendable {
         return repository.subscribeCount(query: queryBuilder)
     }
     
+    // MARK: - Alternative Subscription Methods (Different Return Types)
+    
+    /// Subscribe to this query's results (returns QuerySubscription)
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Returns: A QuerySubscription that emits updated query results when data changes
+    public func subscribeQuery() -> QuerySubscription<T> {
+        return repository.subscribeQuery(query: queryBuilder)
+    }
+    
+    /// Subscribe to the first result of this query (returns SingleQuerySubscription)
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Returns: A SingleQuerySubscription that emits the first updated query result when data changes
+    public func subscribeSingle() -> SingleQuerySubscription<T> {
+        return repository.subscribeSingle(query: queryBuilder)
+    }
+    
+    /// Subscribe to the count of results for this query (returns CountSubscription)
+    /// Uses atomic setup to eliminate race conditions - no await needed!
+    /// - Returns: A CountSubscription that emits updated count when data changes
+    public func subscribeCountQuery() -> CountSubscription<T> {
+        return repository.subscribeCountQuery(query: queryBuilder)
+    }
+    
     /// Get the underlying QueryBuilder for compatibility
     /// - Returns: The underlying QueryBuilder instance
     public func asQueryBuilder() -> QueryBuilder<T> {
