@@ -1,7 +1,17 @@
 import Foundation
 
+/// Status of synchronization for a model
+public enum SyncStatus: String, Codable, CaseIterable, Sendable {
+    case synced = "synced"
+    case pending = "pending"
+    case syncing = "syncing"
+    case failed = "failed"
+    case conflict = "conflict"
+}
+
 /// The core protocol that all ORM tables must conform to
 /// Provides automatic SQL generation and type-safe database operations
+/// All ORMTable types are automatically syncable
 public protocol ORMTable: Codable, Sendable {
     /// The type used for the primary key
     associatedtype IDType: Codable & Sendable & LosslessStringConvertible & Equatable
@@ -22,6 +32,23 @@ public protocol ORMTable: Codable, Sendable {
     
     /// Unique constraints for the table
     static var uniqueConstraints: [ORMUniqueConstraint] { get }
+    
+    // MARK: - Sync Properties (automatically included in all models)
+    
+    /// Timestamp of last successful sync
+    var lastSyncTimestamp: Date? { get set }
+    
+    /// Whether this model has local changes that need to be synchronized
+    var isDirty: Bool { get set }
+    
+    /// Current synchronization status
+    var syncStatus: SyncStatus { get set }
+    
+    /// Server-side identifier (may differ from local ID)
+    var serverID: String? { get set }
+    
+    /// Unique identifier for conflict resolution (defaults to encoded JSON hash)
+    var conflictFingerprint: String { get }
 }
 
 /// Default implementations for ORMTable protocol
@@ -35,6 +62,21 @@ public extension ORMTable {
     static var indexes: [ORMIndex] { [] }
     
     static var uniqueConstraints: [ORMUniqueConstraint] { [] }
+    
+    // MARK: - Default Sync Implementations
+    
+    /// Default conflict fingerprint based on encoded model data
+    var conflictFingerprint: String {
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .sortedKeys
+            let data = try encoder.encode(self)
+            return String(data.hashValue)
+        } catch {
+            // Fallback to UUID if encoding fails
+            return UUID().uuidString
+        }
+    }
 }
 
 /// Represents a database index

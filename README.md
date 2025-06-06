@@ -14,6 +14,7 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 - 🔄 **Migration system** with version tracking
 - 📅 **Advanced date handling** with multiple format support
 - 🔗 **Combine integration** for reactive data subscriptions
+- 🔄 **Built-in sync** - every model automatically gets data synchronization capabilities
 - 🚀 **Easy to use** - just conform to `ORMTable` protocol and use `@ORMTable` macro
 - 🎨 **Clean API** - modern ORM-prefixed naming convention
 
@@ -292,6 +293,186 @@ case .failure(let error):
 // Or use convenient methods
 let user = result.toOptional() // Logs error and returns optional
 ```
+
+## Built-in Data Synchronization
+
+SQLiteORM includes comprehensive data synchronization capabilities. Every ORMTable model is automatically syncable with minimal setup and powerful conflict resolution.
+
+### Simple Sync (Minimal API)
+
+Every model automatically gets sync capabilities - just call `.sync(with:orm:)`:
+
+```swift
+// You have server data from your API
+let serverUsers = [
+    User(id: 1, username: "john", email: "john@example.com"),
+    User(id: 2, username: "jane", email: "jane@example.com")
+]
+
+// SIMPLEST SYNC - server wins by default
+let result = await User.sync(with: serverUsers, orm: orm)
+
+switch result {
+case .success(let changes):
+    print("✅ Sync complete: \(changes.totalChanges) changes")
+case .failure(let error):
+    print("❌ Sync failed: \(error)")
+}
+```
+
+### Automatic Sync Properties
+
+All ORMTable models automatically include sync metadata:
+
+```swift
+@ORMTable
+struct User: ORMTable {
+    var id: Int = 0
+    var username: String = ""
+    var email: String = ""
+    
+    // Sync properties are automatically included:
+    var lastSyncTimestamp: Date? = nil
+    var isDirty: Bool = false
+    var syncStatus: SyncStatus = .synced
+    var serverID: String? = nil
+}
+```
+
+### Conflict Resolution
+
+Multiple strategies for handling data conflicts:
+
+```swift
+// Server wins (default)
+await User.sync(with: serverUsers, orm: orm)
+
+// Local wins
+await User.sync(with: serverUsers, orm: orm, conflictResolution: .localWins)
+
+// Newest modification wins
+await User.sync(with: serverUsers, orm: orm, conflictResolution: .newestWins)
+
+// Custom resolution logic
+await User.sync(
+    with: serverUsers,
+    orm: orm,
+    conflictResolution: .custom { local, server in
+        // Your custom logic here
+        return local.email.contains("@company.com") ? local : server
+    }
+)
+```
+
+### Change Tracking
+
+Monitor what changes during sync operations:
+
+```swift
+let result = await Product.sync(
+    with: serverProducts,
+    orm: orm,
+    changeCallback: { changes in
+        print("📊 Sync results:")
+        print("➕ New products: \(changes.inserted.count)")
+        print("📝 Updated products: \(changes.updated.count)")
+        print("⚠️ Conflicts resolved: \(changes.conflicts)")
+        
+        // Log individual changes
+        for product in changes.inserted {
+            print("   New: \(product.name) - $\(product.price)")
+        }
+    }
+)
+```
+
+### Two-Way Sync Pattern
+
+Complete bidirectional synchronization:
+
+```swift
+// === DOWNLOAD PHASE ===
+// 1. Get server data (your API call)
+let serverOrders = await fetchOrdersFromAPI()
+
+// 2. Sync with local - server wins for existing orders
+await Order.sync(
+    with: serverOrders,
+    orm: orm,
+    conflictResolution: .serverWins,
+    changeCallback: { changes in
+        print("📥 Downloaded: \(changes.totalChanges) order changes")
+    }
+)
+
+// === UPLOAD PHASE ===
+// 3. Get local changes that need uploading
+let localChanges = await Order.getLocalChanges(orm: orm)
+
+if case .success(let orders) = localChanges, !orders.isEmpty {
+    // 4. Upload to server (your API call)
+    let uploadedOrders = await uploadOrdersToAPI(orders)
+    
+    // 5. Mark as synced
+    await Order.markAsSynced(uploadedOrders, orm: orm)
+    print("📤 Uploaded: \(uploadedOrders.count) orders")
+}
+```
+
+### Real-World Use Cases
+
+#### E-commerce App
+```swift
+// Products: server is authoritative
+let serverProducts = await fetchProductsFromAPI()
+await Product.sync(with: serverProducts, orm: orm) // Server wins by default
+
+// Users: bidirectional with newest wins
+let serverUsers = await fetchUsersFromAPI()
+await User.sync(with: serverUsers, orm: orm, conflictResolution: .newestWins)
+
+// Orders: upload local changes
+let localOrders = await Order.getLocalChanges(orm: orm)
+if case .success(let orders) = localOrders, !orders.isEmpty {
+    let uploaded = await uploadOrdersToAPI(orders)
+    await Order.markAsSynced(uploaded, orm: orm)
+}
+```
+
+#### Content Management App
+```swift
+// Articles from CMS - server always wins
+let articles = await fetchArticlesFromCMS()
+await Article.sync(with: articles, orm: orm) // Default: server wins
+
+// Categories from CMS
+let categories = await fetchCategoriesFromCMS()
+await Category.sync(with: categories, orm: orm)
+```
+
+#### File-Based Sync (No API Required)
+```swift
+// Load data from JSON file
+if let fileURL = Bundle.main.url(forResource: "users", withExtension: "json"),
+   let data = try? Data(contentsOf: fileURL),
+   let users = try? JSONDecoder().decode([User].self, from: data) {
+    
+    // Sync file data with database
+    let result = await User.sync(with: users, orm: orm)
+    print("Synced from file: \(try! result.get().totalChanges) users")
+}
+```
+
+### Key Features
+
+- **Zero Setup**: Every ORMTable is automatically syncable
+- **Minimal API**: One method call for basic sync operations
+- **Flexible Conflicts**: Multiple resolution strategies with custom logic support
+- **Change Tracking**: Detailed callbacks for monitoring sync operations
+- **API Independent**: Works with any data source (REST, GraphQL, files, etc.)
+- **Batch Processing**: Efficient handling of large datasets
+- **Two-Way Sync**: Upload local changes and download server updates
+- **Type Safe**: Full Swift type safety with Result-based error handling
 
 ## Combine Integration (iOS 16.0+)
 
