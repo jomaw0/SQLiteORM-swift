@@ -526,4 +526,5 @@ public enum SyncError: Error {
     case conflictResolutionError
     case repositoryError(String)
     case invalidServerData
+    case invalidDataType
 }
