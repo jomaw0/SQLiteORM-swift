@@ -82,7 +82,7 @@ class DatabaseManager: ObservableObject {
         
         // Subscribe to all active lists
         listSubscription = listRepository.subscribe(
-            query: QueryBuilder<ShoppingList>()
+            query: ORMQueryBuilder<ShoppingList>()
                 .where("isActive", .equal, true)
                 .orderBy("createdAt", ascending: false)
         )
@@ -100,7 +100,7 @@ class DatabaseManager: ObservableObject {
         
         // Subscribe to all items
         itemSubscription = itemRepository.subscribe(
-            query: QueryBuilder<ShoppingItem>()
+            query: ORMQueryBuilder<ShoppingItem>()
                 .orderBy("addedAt", ascending: false)
         )
         

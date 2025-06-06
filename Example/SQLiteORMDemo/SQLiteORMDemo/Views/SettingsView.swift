@@ -145,16 +145,22 @@ struct AboutView: View {
                     FeatureRow(icon: "swift", title: "Swift Macros", description: "Reduced boilerplate")
                 }
                 .padding()
+                #if os(iOS)
                 .background(Color(.secondarySystemGroupedBackground))
+                #else
+                .background(Color(NSColor.controlBackgroundColor))
+                #endif
                 .cornerRadius(12)
                 
                 Spacer()
             }
             .padding()
             .navigationTitle("About")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         dismiss()
                     }

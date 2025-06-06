@@ -28,7 +28,7 @@ struct ShoppingListsView: View {
             }
             .navigationTitle("Shopping Lists")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         showingAddList = true
                     } label: {

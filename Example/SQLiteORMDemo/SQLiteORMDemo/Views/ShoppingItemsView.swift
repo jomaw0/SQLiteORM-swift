@@ -25,7 +25,11 @@ struct ShoppingItemsView: View {
             if !filteredItems.isEmpty {
                 progressHeader
                     .padding()
+                    #if os(iOS)
                     .background(Color(.systemGroupedBackground))
+                    #else
+                    .background(Color(NSColor.controlBackgroundColor))
+                    #endif
             }
             
             // Items list
@@ -38,17 +42,28 @@ struct ShoppingItemsView: View {
             }
         }
         .navigationTitle(shoppingList.name)
+        #if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+        #endif
         .toolbar {
-            ToolbarItemGroup(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .primaryAction) {
                 Menu {
                     Picker("Category", selection: $selectedCategory) {
                         ForEach(allCategories, id: \.self) { category in
-                            Text(category).tag(category)
+                            HStack {
+                                Image(systemName: iconForCategory(category))
+                                Text(category)
+                            }
+                            .tag(category)
                         }
                     }
                     
-                    Toggle("Show Checked Items", isOn: $showCheckedItems)
+                    Toggle(isOn: $showCheckedItems) {
+                        HStack {
+                            Image(systemName: showCheckedItems ? "checkmark.circle.fill" : "checkmark.circle")
+                            Text("Show Checked Items")
+                        }
+                    }
                 } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
                 }
@@ -144,6 +159,38 @@ struct ShoppingItemsView: View {
         await databaseManager.toggleItemChecked(item)
     }
     
+    private func deleteItemsAtOffsets(offsets: IndexSet) {
+        for index in offsets {
+            let item = filteredItems[index]
+            Task {
+                await deleteItem(item)
+            }
+        }
+    }
+    
+    private func iconForCategory(_ category: String) -> String {
+        switch category {
+        case "Groceries":
+            return "cart.fill"
+        case "Electronics":
+            return "laptopcomputer"
+        case "Clothing":
+            return "tshirt.fill"
+        case "Health & Beauty":
+            return "heart.fill"
+        case "Home & Garden":
+            return "house.fill"
+        case "Sports & Outdoors":
+            return "figure.run"
+        case "Books & Media":
+            return "book.fill"
+        case "All":
+            return "line.3.horizontal.decrease"
+        default:
+            return "tag.fill"
+        }
+    }
+    
     private var progressHeader: some View {
         VStack(spacing: 12) {
             HStack {
@@ -192,7 +239,11 @@ struct ShoppingItemsView: View {
             }
         }
         .padding()
+        #if os(iOS)
         .background(Color(.secondarySystemGroupedBackground))
+        #else
+        .background(Color(NSColor.controlBackgroundColor))
+        #endif
         .cornerRadius(12)
     }
     
@@ -214,8 +265,10 @@ struct ShoppingItemsView: View {
                     }
                 )
             }
+            .onDelete(perform: deleteItemsAtOffsets)
         }
         .listStyle(PlainListStyle())
+        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: filteredItems.map { "\($0.id)-\($0.isChecked)" })
     }
     
     private var emptyState: some View {

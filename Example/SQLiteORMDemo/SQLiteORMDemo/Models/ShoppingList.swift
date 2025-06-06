@@ -9,7 +9,7 @@ import Foundation
 import SQLiteORM
 
 @ORMTable
-struct ShoppingList: ORMTable, Identifiable {
+struct ShoppingList: ORMTable, Identifiable, Equatable, Hashable {
     typealias IDType = Int
     
     var id: Int = 0
@@ -55,5 +55,16 @@ extension ShoppingList {
     var completionPercentage: Double {
         guard totalItems > 0 else { return 0 }
         return Double(checkedItems) / Double(totalItems) * 100
+    }
+}
+
+// MARK: - Equatable & Hashable
+extension ShoppingList {
+    static func == (lhs: ShoppingList, rhs: ShoppingList) -> Bool {
+        lhs.id == rhs.id
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
     }
 }

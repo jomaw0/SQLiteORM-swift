@@ -42,15 +42,17 @@ struct AddEditListView: View {
                 }
             }
             .navigationTitle(isEditing ? "Edit List" : "New List")
+            #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
                 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button(isEditing ? "Save" : "Create") {
                         Task {
                             await saveList()
