@@ -1,9 +1,12 @@
 import Foundation
 @preconcurrency import Combine
 
-/// A simple and robust Combine publisher for SQLiteORM query subscriptions
+/// A robust Combine publisher for SQLiteORM query subscriptions
 /// Uses atomic setup to eliminate race conditions without complex state tracking
+/// 
+/// - Note: This class is deprecated. Use `QuerySubscription` instead.
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+@available(*, deprecated, renamed: "QuerySubscription", message: "Use QuerySubscription instead. SimpleQuerySubscription will be removed in a future version.")
 @MainActor
 public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<[T]> = .success([])
@@ -57,9 +60,12 @@ public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
     }
 }
 
-/// A simple subscription for single model queries
+/// A subscription for single model queries
 /// Uses atomic setup to eliminate race conditions
+/// 
+/// - Note: This class is deprecated. Use `SingleQuerySubscription` instead.
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+@available(*, deprecated, renamed: "SingleQuerySubscription", message: "Use SingleQuerySubscription instead. SimpleSingleQuerySubscription will be removed in a future version.")
 @MainActor
 public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<T?> = .success(nil)
@@ -111,9 +117,12 @@ public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject 
     }
 }
 
-/// A simple subscription for count queries
+/// A subscription for count queries
 /// Uses atomic setup to eliminate race conditions
+/// 
+/// - Note: This class is deprecated. Use `CountSubscription` instead.
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
+@available(*, deprecated, renamed: "CountSubscription", message: "Use CountSubscription instead. SimpleCountSubscription will be removed in a future version.")
 @MainActor
 public final class SimpleCountSubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<Int> = .success(0)
