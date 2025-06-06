@@ -140,6 +140,143 @@ public extension ORMTable {
         
         return .success(())
     }
+    
+    // MARK: - Soft Sync Methods
+    
+    /// SOFT SYNC - Insert missing and update existing items, but never delete
+    /// Perfect for merging server data while preserving local-only items
+    /// - Parameters:
+    ///   - serverData: Single item to soft sync
+    ///   - orm: ORM instance for database operations
+    /// - Returns: Result with sync changes (no removed items)
+    static func softSync(
+        with serverData: Self,
+        orm: ORM
+    ) async -> Result<SyncChanges<Self>, Error> {
+        return await softSync(with: [serverData], orm: orm)
+    }
+    
+    /// SOFT SYNC - Insert missing and update existing items, but never delete
+    /// Perfect for merging server data while preserving local-only items
+    /// - Parameters:
+    ///   - serverData: Array of models to soft sync
+    ///   - orm: ORM instance for database operations
+    /// - Returns: Result with sync changes (no removed items)
+    static func softSync(
+        with serverData: [Self],
+        orm: ORM
+    ) async -> Result<SyncChanges<Self>, Error> {
+        return await softSync(
+            with: serverData,
+            orm: orm,
+            conflictResolution: .serverWins,
+            changeCallback: nil
+        )
+    }
+    
+    /// SOFT SYNC with conflict resolution - Insert missing and update existing items, but never delete
+    /// - Parameters:
+    ///   - serverData: Array of models to soft sync
+    ///   - orm: ORM instance for database operations
+    ///   - conflictResolution: How to handle conflicts
+    ///   - changeCallback: Optional callback to observe changes
+    /// - Returns: Result with sync changes (no removed items)
+    static func softSync(
+        with serverData: [Self],
+        orm: ORM,
+        conflictResolution: ConflictResolution = .serverWins,
+        changeCallback: ((SyncChanges<Self>) async -> Void)? = nil
+    ) async -> Result<SyncChanges<Self>, Error> {
+        
+        do {
+            let repository = await orm.repository(for: Self.self)
+            
+            // Get all local data
+            let localResult = await repository.findAll()
+            guard case .success(let localData) = localResult else {
+                if case .failure(let error) = localResult {
+                    return .failure(error)
+                }
+                return .failure(SyncError.localDataError)
+            }
+            
+            // Perform the soft sync (no deletions)
+            let changes = await performSoftSync(
+                local: localData,
+                server: serverData,
+                repository: repository,
+                conflictResolution: conflictResolution
+            )
+            
+            // Notify observer if provided
+            if let callback = changeCallback {
+                await callback(changes)
+            }
+            
+            return .success(changes)
+            
+        } catch {
+            return .failure(error)
+        }
+    }
+    
+    /// SOFT SYNC from Codable container - Extract items from nested structure and soft sync
+    /// - Parameters:
+    ///   - container: Codable object that may contain the items in a nested property
+    ///   - keyPath: Key path to the items array in the container
+    ///   - orm: ORM instance for database operations
+    /// - Returns: Result with sync changes (no removed items)
+    static func softSync<Container: Codable>(
+        from container: Container,
+        keyPath: KeyPath<Container, [Self]>,
+        orm: ORM
+    ) async -> Result<SyncChanges<Self>, Error> {
+        let serverData = container[keyPath: keyPath]
+        return await softSync(with: serverData, orm: orm)
+    }
+    
+    /// SOFT SYNC from Codable container with conflict resolution
+    /// - Parameters:
+    ///   - container: Codable object that may contain the items in a nested property
+    ///   - keyPath: Key path to the items array in the container
+    ///   - orm: ORM instance for database operations
+    ///   - conflictResolution: How to handle conflicts
+    ///   - changeCallback: Optional callback to observe changes
+    /// - Returns: Result with sync changes (no removed items)
+    static func softSync<Container: Codable>(
+        from container: Container,
+        keyPath: KeyPath<Container, [Self]>,
+        orm: ORM,
+        conflictResolution: ConflictResolution = .serverWins,
+        changeCallback: ((SyncChanges<Self>) async -> Void)? = nil
+    ) async -> Result<SyncChanges<Self>, Error> {
+        let serverData = container[keyPath: keyPath]
+        return await softSync(
+            with: serverData,
+            orm: orm,
+            conflictResolution: conflictResolution,
+            changeCallback: changeCallback
+        )
+    }
+    
+    /// SOFT SYNC from optional Codable container - Handle cases where keyPath might contain a single item
+    /// - Parameters:
+    ///   - container: Codable object that may contain a single item
+    ///   - keyPath: Key path to the optional item in the container
+    ///   - orm: ORM instance for database operations
+    /// - Returns: Result with sync changes (no removed items)
+    static func softSync<Container: Codable>(
+        from container: Container,
+        keyPath: KeyPath<Container, Self?>,
+        orm: ORM
+    ) async -> Result<SyncChanges<Self>, Error> {
+        if let serverData = container[keyPath: keyPath] {
+            return await softSync(with: serverData, orm: orm)
+        } else {
+            // No data to sync
+            return .success(SyncChanges<Self>())
+        }
+    }
 }
 
 // MARK: - Core Sync Logic
@@ -277,6 +414,59 @@ extension ORMTable {
         }
         
         return resolved
+    }
+    
+    /// Perform the actual soft synchronization logic (no deletions)
+    private static func performSoftSync(
+        local: [Self],
+        server: [Self],
+        repository: Repository<Self>,
+        conflictResolution: ConflictResolution
+    ) async -> SyncChanges<Self> {
+        
+        var changes = SyncChanges<Self>()
+        
+        // Create lookup maps for efficient comparison
+        let localByID = createLookupMap(local)
+        
+        // Process server models - only insert/update, never delete
+        for serverModel in server {
+            if let localModel = findMatchingLocal(serverModel, in: localByID) {
+                // Model exists locally - check for conflicts
+                if hasConflict(local: localModel, server: serverModel) {
+                    // Handle conflict
+                    let resolved = await resolveConflict(
+                        local: localModel,
+                        server: serverModel,
+                        resolution: conflictResolution,
+                        repository: repository
+                    )
+                    
+                    changes.conflicts += 1
+                    changes.updated.append(resolved)
+                    
+                } else if !localModel.isDirty {
+                    // No conflict, safe to update
+                    let updated = await updateWithServerData(
+                        local: localModel,
+                        server: serverModel,
+                        repository: repository
+                    )
+                    changes.updated.append(updated)
+                }
+                // If local is dirty but no conflict, keep local version (no changes)
+                
+            } else {
+                // New model from server
+                let inserted = await insertServerModel(serverModel, repository: repository)
+                changes.inserted.append(inserted)
+            }
+        }
+        
+        // Note: In soft sync, we NEVER populate changes.removed
+        // Local-only items are preserved
+        
+        return changes
     }
     
     /// Apply server data to local model while preserving local ID

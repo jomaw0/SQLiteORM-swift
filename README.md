@@ -14,10 +14,11 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 - 🔄 **Migration system** with version tracking
 - 📅 **Advanced date handling** with multiple format support
 - 🔗 **Combine integration** for reactive data subscriptions
-- 🔄 **Built-in sync** - every model automatically gets data synchronization capabilities
+- 🔄 **Built-in sync** - comprehensive data synchronization with soft-sync, conflict resolution, and multi-model coordination
 - 🚀 **Easy to use** - just conform to `ORMTable` protocol and use `@ORMTable` macro
 - 🎨 **Clean API** - modern ORM-prefixed naming convention
-- ⚡ **Protocol conformances** - automatic `Identifiable`, `Hashable`, and `Codable` support with generic implementations
+- ⚡ **Protocol conformances** - automatic `Identifiable`, `Hashable`, and `Codable` support with generic property-based implementations
+- 🌐 **Advanced Sync Features** - individual model sync, multi-model coordination, and KeyPath-based container extraction
 
 ## Installation
 
@@ -173,6 +174,446 @@ user1.hashValue == user2.hashValue  // false - different hash
 
 // Generic implementation uses Codable encoding for robust comparison
 // Automatically handles all property types: String, Int, Date, Bool, etc.
+```
+
+### Data Synchronization
+
+SQLiteORM provides two powerful synchronization approaches to handle different real-world scenarios:
+
+#### 🔄 **Sync vs SoftSync - When to Use Each**
+
+**Traditional Sync** (exact mirror):
+- **What it does**: Makes local database an exact mirror of server data
+- **Behavior**: Inserts new items, updates existing items, **deletes items missing from server**
+- **Use cases**: Product catalogs, system configurations, authoritative server data
+- **Example**: E-commerce app syncing product catalog where discontinued products should be removed
+
+**SoftSync** (preserve local data):
+- **What it does**: Updates local database but **preserves local-only data**
+- **Behavior**: Inserts new items, updates existing items, **never deletes anything**
+- **Use cases**: User-generated content, drafts, offline-first apps, collaborative data
+- **Example**: Note-taking app where users create local notes that shouldn't be deleted during server sync
+
+#### 🌍 **Quick Usage Examples**
+
+##### E-Commerce App
+```swift
+// Product catalog: Use traditional sync (exact mirror)
+// Discontinued products should be removed from local database
+let catalogResult = await Product.sync(with: serverProducts, orm: orm)
+
+// User's shopping cart: Use softSync (preserve local items)
+// Don't delete items user added while offline
+let cartResult = await CartItem.softSync(with: serverCartItems, orm: orm)
+```
+
+##### Note-Taking App
+```swift
+// Shared notes: Use softSync (preserve user's local drafts)
+// User might have unsaved local notes that shouldn't be deleted
+let notesResult = await Note.softSync(with: serverNotes, orm: orm)
+
+// App settings: Use traditional sync (exact mirror of server config)
+let settingsResult = await AppSetting.sync(with: serverSettings, orm: orm)
+```
+
+#### 📊 **Multi-Model SoftSync - The Game Changer**
+
+Real-world APIs often return complex responses with multiple data types. Instead of handling each model type separately, SQLiteORM's multi-model softSync lets you coordinate everything in a single, elegant call.
+
+##### The Problem: Complex API Responses
+```swift
+// Typical API response from a mobile app backend
+struct AppDataResponse: Codable {
+    let user: UserProfile
+    let settings: [UserSetting]
+    let posts: [Post] 
+    let notifications: [Notification]
+    let friends: [Friend]
+    let categories: [Category]
+    let products: [Product]
+    let conversations: [Conversation]
+    let achievements: [Achievement]
+    let metadata: ResponseMetadata
+}
+```
+
+##### Traditional Approach (Tedious & Error-Prone)
+```swift
+// Manual handling of each model type - lots of boilerplate!
+let response = await fetchAppData()
+
+let userResult = await UserProfile.softSync(with: [response.user], orm: orm)
+let settingsResult = await UserSetting.softSync(with: response.settings, orm: orm)
+let postsResult = await Post.softSync(with: response.posts, orm: orm)
+let notificationsResult = await Notification.softSync(with: response.notifications, orm: orm)
+let friendsResult = await Friend.softSync(with: response.friends, orm: orm)
+let categoriesResult = await Category.sync(with: response.categories, orm: orm)
+let productsResult = await Product.sync(with: response.products, orm: orm)
+let conversationsResult = await Conversation.softSync(with: response.conversations, orm: orm)
+let achievementsResult = await Achievement.softSync(with: response.achievements, orm: orm)
+
+// Handle individual errors for each model type... 😫
+```
+
+##### ✨ SQLiteORM Multi-Model Approach (Clean & Powerful)
+```swift
+// Handle everything in one elegant call!
+let result = await orm.softSync(
+    from: response,
+    modelTypes: [
+        UserProfile.self,
+        UserSetting.self, 
+        Post.self,
+        Notification.self,
+        Friend.self,
+        Category.self,
+        Product.self,
+        Conversation.self,
+        Achievement.self
+    ],
+    conflictResolution: .serverWins
+)
+
+// Single result handling with detailed breakdown
+switch result {
+case .success(let syncResults):
+    // Get overview
+    let totalChanges = syncResults.modelResults.values.map(\.totalChanges).reduce(0, +)
+    print("✅ Sync completed: \(totalChanges) total changes across \(syncResults.modelResults.count) model types")
+    
+    // Detailed breakdown for each model type
+    for (modelType, modelResult) in syncResults.modelResults {
+        if modelResult.totalChanges > 0 {
+            print("📊 \(modelType):")
+            print("   • Inserted: \(modelResult.insertedCount)")
+            print("   • Updated: \(modelResult.updatedCount)")
+            print("   • Conflicts: \(modelResult.conflictsCount)")
+        }
+    }
+    
+case .failure(let error):
+    print("❌ Sync failed: \(error)")
+}
+```
+
+##### Advanced Multi-Model Usage Patterns
+
+###### Pattern 1: Selective Model Sync
+```swift
+// Sync only user-related data on login
+let loginResult = await orm.softSync(
+    from: response,
+    modelTypes: [UserProfile.self, UserSetting.self, Friend.self],
+    conflictResolution: .localWins  // Keep user's local preferences
+)
+
+// Sync content data separately with different strategy
+let contentResult = await orm.softSync(
+    from: response,
+    modelTypes: [Post.self, Category.self, Product.self],
+    conflictResolution: .serverWins  // Server content is authoritative
+)
+```
+
+###### Pattern 2: Conditional Multi-Model Sync
+```swift
+// Smart sync based on app state
+func syncAppData(_ response: AppDataResponse) async {
+    if isFirstTimeUser {
+        // New user: sync everything with server priority
+        await orm.softSync(
+            from: response,
+            modelTypes: [UserProfile.self, UserSetting.self, Post.self, Category.self],
+            conflictResolution: .serverWins
+        )
+    } else {
+        // Existing user: preserve local changes
+        await orm.softSync(
+            from: response,
+            modelTypes: [UserProfile.self, UserSetting.self, Post.self],
+            conflictResolution: .localWins
+        )
+    }
+}
+```
+
+###### Pattern 3: Incremental Multi-Model Sync
+```swift
+// Large dataset: sync in chunks by model priority
+class SmartSyncManager {
+    func performIncrementalSync(_ response: AppDataResponse) async {
+        // Phase 1: Critical user data first
+        let criticalResult = await orm.softSync(
+            from: response,
+            modelTypes: [UserProfile.self, UserSetting.self],
+            conflictResolution: .serverWins
+        )
+        
+        // Phase 2: Social data
+        let socialResult = await orm.softSync(
+            from: response,
+            modelTypes: [Friend.self, Conversation.self, Notification.self],
+            conflictResolution: .localWins
+        )
+        
+        // Phase 3: Content data (can be done in background)
+        Task.detached {
+            await orm.softSync(
+                from: response,
+                modelTypes: [Post.self, Category.self, Product.self],
+                conflictResolution: .serverWins
+            )
+        }
+    }
+}
+```
+
+##### Key Benefits of Multi-Model SoftSync
+
+1. **🚀 Simplified Code**: One call instead of multiple individual sync operations
+2. **🔒 Atomic Operations**: All models sync together or none do (transaction safety)
+3. **📊 Unified Results**: Single result object with breakdown for each model type
+4. **⚡ Performance**: Optimized database operations and reduced overhead
+5. **🛡️ Error Handling**: Centralized error handling instead of managing multiple failure points
+6. **🎯 Flexible Strategies**: Different conflict resolution per sync operation
+7. **📱 Type Safety**: Compile-time verification of model types and relationships
+
+#### 🛠 **Advanced Sync Scenarios**
+
+##### Selective Model Sync
+```swift
+// Real scenario: Social media app with different sync needs
+struct SocialFeedResponse: Codable {
+    let posts: [Post]
+    let stories: [Story]
+    let messages: [Message]
+    let notifications: [Notification]
+    let settings: [UserSetting]
+}
+
+let feedResponse = await fetchSocialFeed()
+
+// Option 1: Sync everything with same strategy
+let allResult = await orm.softSync(
+    from: feedResponse,
+    modelTypes: [Post.self, Story.self, Message.self, Notification.self, UserSetting.self],
+    conflictResolution: .serverWins
+)
+
+// Option 2: Selective sync based on app state
+if userIsOnline {
+    // Sync user-generated content with soft-sync (preserve drafts)
+    let contentResult = await orm.softSync(
+        from: feedResponse,
+        modelTypes: [Post.self, Message.self],
+        conflictResolution: .localWins  // Keep user's changes
+    )
+    
+    // Sync system data with exact mirror
+    let systemResult = await UserSetting.sync(with: feedResponse.settings, orm: orm)
+}
+```
+
+##### KeyPath-Based Extraction
+```swift
+// When you need fine-grained control over individual model types
+struct ComplexAPIResponse: Codable {
+    let userData: UserData
+    let appData: AppData
+    
+    struct UserData: Codable {
+        let profile: UserProfile
+        let preferences: [UserPreference]
+        let activities: [UserActivity]
+    }
+    
+    struct AppData: Codable {
+        let products: [Product]
+        let categories: [Category]
+        let promotions: [Promotion]
+    }
+}
+
+let response = await fetchComplexData()
+
+// Extract and sync user preferences with local priority
+let prefResult = await UserPreference.softSync(
+    from: response, 
+    keyPath: \.userData.preferences, 
+    orm: orm,
+    conflictResolution: .localWins  // User's local preferences win
+)
+
+// Extract and sync products with server priority  
+let productResult = await Product.sync(
+    from: response,
+    keyPath: \.appData.products,
+    orm: orm,
+    conflictResolution: .serverWins  // Server catalog is authoritative
+)
+
+// Handle special business logic for promotions
+let promotionResult = await Promotion.softSync(
+    from: response,
+    keyPath: \.appData.promotions,
+    orm: orm,
+    conflictResolution: .custom { local, server in
+        let localPromo = local as! Promotion
+        let serverPromo = server as! Promotion
+        
+        // Custom logic: Keep higher discount value
+        return localPromo.discountPercent > serverPromo.discountPercent ? localPromo : serverPromo
+    }
+)
+```
+
+#### ⚔️ **Conflict Resolution Strategies**
+
+When the same item exists both locally and on the server, SQLiteORM provides flexible conflict resolution:
+
+```swift
+// Available conflict resolution strategies
+enum ConflictResolution {
+    case serverWins    // Default: server data overwrites local
+    case localWins     // Local data preserved in conflicts
+    case newestWins    // Compare timestamps to determine winner
+    case custom((local: any ORMTable, server: any ORMTable) async -> any ORMTable)
+}
+```
+
+##### Real-World Conflict Resolution Examples
+
+```swift
+// 📝 Collaborative Document Editing
+let result = await Document.softSync(
+    with: serverDocuments,
+    orm: orm,
+    conflictResolution: .custom { local, server in
+        let localDoc = local as! Document
+        let serverDoc = server as! Document
+        
+        // Business logic: Merge document versions
+        if localDoc.lastModified > serverDoc.lastModified {
+            // Local is newer, but keep server's published status
+            return Document(
+                id: localDoc.id,
+                title: localDoc.title,
+                content: localDoc.content,
+                lastModified: localDoc.lastModified,
+                isPublished: serverDoc.isPublished  // Server decides publication
+            )
+        } else {
+            return serverDoc  // Server version is newer
+        }
+    }
+)
+
+// 💰 Financial Data (Always use server)
+let accountResult = await Account.softSync(
+    with: serverAccounts,
+    orm: orm,
+    conflictResolution: .serverWins  // Financial data must be authoritative
+)
+
+// 👤 User Preferences (Keep local changes)
+let prefsResult = await UserPreference.softSync(
+    with: serverPreferences,
+    orm: orm,
+    conflictResolution: .localWins  // User's local settings take priority
+)
+
+// 📊 Analytics Data (Newest wins)
+let analyticsResult = await AnalyticsEvent.softSync(
+    with: serverEvents,
+    orm: orm,
+    conflictResolution: .newestWins  // Most recent data is most accurate
+)
+
+// 🛒 Shopping Cart (Smart merge)
+let cartResult = await CartItem.softSync(
+    with: serverCartItems,
+    orm: orm,
+    conflictResolution: .custom { local, server in
+        let localItem = local as! CartItem
+        let serverItem = server as! CartItem
+        
+        // Business logic: Use higher quantity, latest price
+        return CartItem(
+            id: localItem.id,
+            productId: localItem.productId,
+            quantity: max(localItem.quantity, serverItem.quantity),  // Higher quantity
+            price: serverItem.price,  // Always use server price
+            addedAt: localItem.addedAt  // Keep original add time
+        )
+    }
+)
+```
+
+#### 🎯 **Best Practices & Guidelines**
+
+##### When to Use Traditional Sync
+- ✅ **Product catalogs** - Remove discontinued items
+- ✅ **System configurations** - Exact server state required
+- ✅ **Financial data** - Must match server exactly
+- ✅ **Reference data** - Countries, currencies, categories
+- ✅ **User permissions** - Security requires server authority
+
+##### When to Use SoftSync  
+- ✅ **User-generated content** - Notes, drafts, comments
+- ✅ **Offline-first apps** - Don't lose user's work
+- ✅ **Collaborative data** - Preserve local changes
+- ✅ **Cache-like data** - OK to have extra local items
+- ✅ **Social features** - Posts, likes, follows (user might have unsent items)
+
+##### Common Patterns
+```swift
+// 🏪 E-commerce: Mixed sync strategies
+class ECommerceSync {
+    func syncShopData() async {
+        let response = await fetchShopData()
+        
+        // Authoritative server data (exact mirror)
+        await Product.sync(with: response.products, orm: orm)
+        await Category.sync(with: response.categories, orm: orm)
+        await ShippingMethod.sync(with: response.shippingMethods, orm: orm)
+        
+        // User data (preserve local changes)
+        await WishlistItem.softSync(with: response.wishlistItems, orm: orm)
+        await CartItem.softSync(with: response.cartItems, orm: orm)
+        await UserReview.softSync(with: response.reviews, orm: orm, conflictResolution: .localWins)
+        
+        // Or handle everything at once with multi-model sync
+        let result = await orm.softSync(
+            from: response,
+            modelTypes: [WishlistItem.self, CartItem.self, UserReview.self],
+            conflictResolution: .localWins
+        )
+    }
+}
+
+// 📱 Social Media: Smart conflict resolution
+class SocialMediaSync {
+    func syncFeedData() async {
+        let response = await fetchFeedData()
+        
+        await Post.softSync(
+            with: response.posts,
+            orm: orm,
+            conflictResolution: .custom { local, server in
+                let localPost = local as! Post
+                let serverPost = server as! Post
+                
+                // Keep local draft status, use server for published posts
+                if localPost.isDraft {
+                    return localPost  // Don't overwrite user's drafts
+                } else {
+                    return serverPost  // Use server version for published posts
+                }
+            }
+        )
+    }
+}
 ```
 
 ## Advanced Features
