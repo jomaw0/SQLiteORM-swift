@@ -39,6 +39,11 @@ struct ContentView: View {
                 Label("Lists", systemImage: "list.bullet")
             }
             
+            AnalyticsView()
+                .tabItem {
+                    Label("Analytics", systemImage: "chart.bar.fill")
+                }
+            
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gear")
