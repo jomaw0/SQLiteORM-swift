@@ -408,24 +408,27 @@ public struct ORMQueryBuilder<T: ORMTable>: Sendable {
 extension ORMQueryBuilder {
     
     /// Subscribe to this query's results using the provided repository
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Parameter repository: The repository to use for the subscription
     /// - Returns: A subscription that emits updated query results when data changes
-    public func subscribe(using repository: Repository<T>) async -> SimpleQuerySubscription<T> {
-        return await repository.subscribe(query: self)
+    public func subscribe(using repository: Repository<T>) -> SimpleQuerySubscription<T> {
+        return repository.subscribe(query: self)
     }
     
     /// Subscribe to the first result of this query using the provided repository
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Parameter repository: The repository to use for the subscription
     /// - Returns: A subscription that emits the first updated query result when data changes
-    public func subscribeFirst(using repository: Repository<T>) async -> SimpleSingleQuerySubscription<T> {
-        return await repository.subscribeFirst(query: self)
+    public func subscribeFirst(using repository: Repository<T>) -> SimpleSingleQuerySubscription<T> {
+        return repository.subscribeFirst(query: self)
     }
     
     /// Subscribe to the count of results for this query using the provided repository
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Parameter repository: The repository to use for the subscription
     /// - Returns: A subscription that emits updated count when data changes
-    public func subscribeCount(using repository: Repository<T>) async -> SimpleCountSubscription<T> {
-        return await repository.subscribeCount(query: self)
+    public func subscribeCount(using repository: Repository<T>) -> SimpleCountSubscription<T> {
+        return repository.subscribeCount(query: self)
     }
 }
 

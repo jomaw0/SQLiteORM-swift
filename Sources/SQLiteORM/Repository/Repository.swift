@@ -336,53 +336,43 @@ public actor Repository<T: ORMTable> {
 extension Repository {
     
     /// Subscribe to changes for all models in this repository
-    /// This method waits for initial data to load before returning, preventing race conditions
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Returns: An observable object that provides updated results when data changes
-    public func subscribe() async -> SimpleQuerySubscription<T> {
-        let subscription = SimpleQuerySubscription(repository: self, query: nil, changeNotifier: changeNotifier)
-        await subscription.waitForInitialization()
-        return subscription
+    public nonisolated func subscribe() -> SimpleQuerySubscription<T> {
+        return SimpleQuerySubscription(repository: self, query: nil, changeNotifier: changeNotifier)
     }
     
     /// Subscribe to changes for models matching a specific query
-    /// This method waits for initial data to load before returning, preventing race conditions
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Parameter query: The query builder to filter results
     /// - Returns: An observable object that provides updated query results when data changes
-    public func subscribe(query: ORMQueryBuilder<T>) async -> SimpleQuerySubscription<T> {
-        let subscription = SimpleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
-        await subscription.waitForInitialization()
-        return subscription
+    public nonisolated func subscribe(query: ORMQueryBuilder<T>) -> SimpleQuerySubscription<T> {
+        return SimpleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
     
     /// Subscribe to changes for a single model by ID
-    /// This method waits for initial data to load before returning, preventing race conditions
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Parameter id: The ID of the model to monitor
     /// - Returns: An observable object that provides the updated model when it changes
-    public func subscribe(id: T.IDType) async -> SimpleSingleQuerySubscription<T> {
+    public nonisolated func subscribe(id: T.IDType) -> SimpleSingleQuerySubscription<T> {
         let query = ORMQueryBuilder<T>().where("id", .equal, id as? SQLiteConvertible)
-        let subscription = SimpleSingleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
-        await subscription.waitForInitialization()
-        return subscription
+        return SimpleSingleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
     
     /// Subscribe to changes for the first model matching a query
-    /// This method waits for initial data to load before returning, preventing race conditions
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Parameter query: The query builder to find the model
     /// - Returns: An observable object that provides the updated model when it changes
-    public func subscribeFirst(query: ORMQueryBuilder<T>) async -> SimpleSingleQuerySubscription<T> {
-        let subscription = SimpleSingleQuerySubscription(repository: self, query: query.limit(1), changeNotifier: changeNotifier)
-        await subscription.waitForInitialization()
-        return subscription
+    public nonisolated func subscribeFirst(query: ORMQueryBuilder<T>) -> SimpleSingleQuerySubscription<T> {
+        return SimpleSingleQuerySubscription(repository: self, query: query.limit(1), changeNotifier: changeNotifier)
     }
     
     /// Subscribe to the count of models matching a query
-    /// This method waits for initial data to load before returning, preventing race conditions
+    /// Uses atomic setup to eliminate race conditions - no await needed!
     /// - Parameter query: Optional query builder to filter the count
     /// - Returns: An observable object that provides updated count when data changes
-    public func subscribeCount(query: ORMQueryBuilder<T>? = nil) async -> SimpleCountSubscription<T> {
-        let subscription = SimpleCountSubscription(repository: self, query: query, changeNotifier: changeNotifier)
-        await subscription.waitForInitialization()
-        return subscription
+    public nonisolated func subscribeCount(query: ORMQueryBuilder<T>? = nil) -> SimpleCountSubscription<T> {
+        return SimpleCountSubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
 }
 

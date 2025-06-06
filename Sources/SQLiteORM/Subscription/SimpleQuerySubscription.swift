@@ -2,6 +2,7 @@ import Foundation
 @preconcurrency import Combine
 
 /// A simple and robust Combine publisher for SQLiteORM query subscriptions
+/// Uses atomic setup to eliminate race conditions without complex state tracking
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 @MainActor
 public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
@@ -11,12 +12,8 @@ public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
     private let query: ORMQueryBuilder<T>?
     private let changeNotifier: ChangeNotifier
     private var cancellable: AnyCancellable?
-    private var cancellables = Set<AnyCancellable>()
     
-    // Readiness tracking
-    private let isReady = CurrentValueSubject<Bool, Never>(false)
-    
-    /// Initialize a new query subscription
+    /// Initialize a new query subscription with immediate atomic setup
     /// - Parameters:
     ///   - repository: The repository to query
     ///   - query: Optional query builder to filter results
@@ -26,47 +23,30 @@ public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
         self.query = query
         self.changeNotifier = changeNotifier
         
-        Task {
-            await setupSubscription()
+        // Immediate atomic setup - eliminates race conditions
+        Task { @MainActor in
+            await self.atomicSetup()
         }
     }
     
     deinit {
         cancellable?.cancel()
-        isReady.send(completion: .finished)
     }
     
-    /// Wait for the subscription to complete its initial data load
-    /// This ensures that the subscription has loaded initial data before proceeding
-    public func waitForInitialization() async {
-        await withCheckedContinuation { continuation in
-            isReady
-                .filter { $0 }
-                .first()
-                .sink { _ in
-                    continuation.resume()
-                }
-                .store(in: &cancellables)
-        }
-    }
-    
-    private func setupSubscription() async {
-        // Load initial data
-        await refreshData()
-        
-        // Mark as ready AFTER initial data is loaded
-        await MainActor.run {
-            isReady.value = true
-        }
-        
-        // Subscribe to changes
+    /// Atomic setup: subscribe to changes BEFORE loading data
+    /// This eliminates race conditions by ensuring any changes during data loading trigger refresh
+    private func atomicSetup() async {
+        // Step 1: Subscribe to changes FIRST - before loading any data
         let publisher = await changeNotifier.publisher(for: T.tableName)
-        cancellable = publisher
-            .sink { [weak self] in
-                Task { [weak self] in
-                    await self?.refreshData()
-                }
+        cancellable = publisher.sink { [weak self] in
+            Task { [weak self] in
+                await self?.refreshData()
             }
+        }
+        
+        // Step 2: THEN load initial data
+        // Any concurrent changes will automatically trigger refresh via the subscription above
+        await refreshData()
     }
     
     private func refreshData() async {
@@ -78,6 +58,7 @@ public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
 }
 
 /// A simple subscription for single model queries
+/// Uses atomic setup to eliminate race conditions
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 @MainActor
 public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject {
@@ -87,12 +68,8 @@ public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject 
     private let query: ORMQueryBuilder<T>
     private let changeNotifier: ChangeNotifier
     private var cancellable: AnyCancellable?
-    private var cancellables = Set<AnyCancellable>()
     
-    // Readiness tracking
-    private let isReady = CurrentValueSubject<Bool, Never>(false)
-    
-    /// Initialize a new single query subscription
+    /// Initialize a new single query subscription with immediate atomic setup
     /// - Parameters:
     ///   - repository: The repository to query
     ///   - query: Query builder to find the model
@@ -102,47 +79,28 @@ public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject 
         self.query = query
         self.changeNotifier = changeNotifier
         
-        Task {
-            await setupSubscription()
+        // Immediate atomic setup - eliminates race conditions
+        Task { @MainActor in
+            await self.atomicSetup()
         }
     }
     
     deinit {
         cancellable?.cancel()
-        isReady.send(completion: .finished)
     }
     
-    /// Wait for the subscription to complete its initial data load
-    /// This ensures that the subscription has loaded initial data before proceeding
-    public func waitForInitialization() async {
-        await withCheckedContinuation { continuation in
-            isReady
-                .filter { $0 }
-                .first()
-                .sink { _ in
-                    continuation.resume()
-                }
-                .store(in: &cancellables)
-        }
-    }
-    
-    private func setupSubscription() async {
-        // Load initial data
-        await refreshData()
-        
-        // Mark as ready AFTER initial data is loaded
-        await MainActor.run {
-            isReady.value = true
-        }
-        
-        // Subscribe to changes
+    /// Atomic setup: subscribe to changes BEFORE loading data
+    private func atomicSetup() async {
+        // Step 1: Subscribe to changes FIRST
         let publisher = await changeNotifier.publisher(for: T.tableName)
-        cancellable = publisher
-            .sink { [weak self] in
-                Task { [weak self] in
-                    await self?.refreshData()
-                }
+        cancellable = publisher.sink { [weak self] in
+            Task { [weak self] in
+                await self?.refreshData()
             }
+        }
+        
+        // Step 2: THEN load initial data
+        await refreshData()
     }
     
     private func refreshData() async {
@@ -154,6 +112,7 @@ public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject 
 }
 
 /// A simple subscription for count queries
+/// Uses atomic setup to eliminate race conditions
 @available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *)
 @MainActor
 public final class SimpleCountSubscription<T: ORMTable>: ObservableObject {
@@ -163,12 +122,8 @@ public final class SimpleCountSubscription<T: ORMTable>: ObservableObject {
     private let query: ORMQueryBuilder<T>?
     private let changeNotifier: ChangeNotifier
     private var cancellable: AnyCancellable?
-    private var cancellables = Set<AnyCancellable>()
     
-    // Readiness tracking
-    private let isReady = CurrentValueSubject<Bool, Never>(false)
-    
-    /// Initialize a new count subscription
+    /// Initialize a new count subscription with immediate atomic setup
     /// - Parameters:
     ///   - repository: The repository to query
     ///   - query: Optional query builder to filter the count
@@ -178,47 +133,28 @@ public final class SimpleCountSubscription<T: ORMTable>: ObservableObject {
         self.query = query
         self.changeNotifier = changeNotifier
         
-        Task {
-            await setupSubscription()
+        // Immediate atomic setup - eliminates race conditions
+        Task { @MainActor in
+            await self.atomicSetup()
         }
     }
     
     deinit {
         cancellable?.cancel()
-        isReady.send(completion: .finished)
     }
     
-    /// Wait for the subscription to complete its initial data load
-    /// This ensures that the subscription has loaded initial data before proceeding
-    public func waitForInitialization() async {
-        await withCheckedContinuation { continuation in
-            isReady
-                .filter { $0 }
-                .first()
-                .sink { _ in
-                    continuation.resume()
-                }
-                .store(in: &cancellables)
-        }
-    }
-    
-    private func setupSubscription() async {
-        // Load initial data
-        await refreshData()
-        
-        // Mark as ready AFTER initial data is loaded
-        await MainActor.run {
-            isReady.value = true
-        }
-        
-        // Subscribe to changes
+    /// Atomic setup: subscribe to changes BEFORE loading data
+    private func atomicSetup() async {
+        // Step 1: Subscribe to changes FIRST
         let publisher = await changeNotifier.publisher(for: T.tableName)
-        cancellable = publisher
-            .sink { [weak self] in
-                Task { [weak self] in
-                    await self?.refreshData()
-                }
+        cancellable = publisher.sink { [weak self] in
+            Task { [weak self] in
+                await self?.refreshData()
             }
+        }
+        
+        // Step 2: THEN load initial data
+        await refreshData()
     }
     
     private func refreshData() async {

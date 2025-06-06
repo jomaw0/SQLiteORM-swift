@@ -44,7 +44,7 @@ struct SubscriptionRaceConditionFixTests {
         let (_, repo) = await setupTestEnvironment()
         
         // Step 1: Create subscription BEFORE any data exists
-        let subscription = await repo.subscribe()
+        let subscription = repo.subscribe()
         
         // Step 2: Immediately create data
         var model = TestModel(name: "Test Model")
@@ -76,7 +76,7 @@ struct SubscriptionRaceConditionFixTests {
         
         // Step 1: Create filtered subscription BEFORE any data exists
         let query = ORMQueryBuilder<TestModel>().where("isActive", .equal, true)
-        let subscription = await repo.subscribe(query: query)
+        let subscription = repo.subscribe(query: query)
         
         // Step 2: Immediately create data that matches the filter
         var model = TestModel(name: "Active Model", isActive: true)
@@ -106,8 +106,8 @@ struct SubscriptionRaceConditionFixTests {
         
         let (_, repo) = await setupTestEnvironment()
         
-        // Step 1: Mimic demo app DatabaseManager.setupSubscriptions() - but now with await
-        let subscription = await repo.subscribe(
+        // Step 1: Mimic demo app DatabaseManager.setupSubscriptions() - atomic setup works immediately
+        let subscription = repo.subscribe(
             query: ORMQueryBuilder<TestModel>()
                 .where("isActive", .equal, true)
                 .orderBy("createdAt", ascending: false)
@@ -152,12 +152,12 @@ struct SubscriptionRaceConditionFixTests {
         
         let (_, repo) = await setupTestEnvironment()
         
-        // Create multiple subscriptions at the same time (all before data exists) - but now with await
-        let allSubscription = await repo.subscribe()
-        let activeSubscription = await repo.subscribe(
+        // Create multiple subscriptions at the same time (all before data exists) - atomic setup
+        let allSubscription = repo.subscribe()
+        let activeSubscription = repo.subscribe(
             query: ORMQueryBuilder<TestModel>().where("isActive", .equal, true)
         )
-        let countSubscription = await repo.subscribeCount()
+        let countSubscription = repo.subscribeCount()
         
         // Immediately insert data
         var model1 = TestModel(name: "Model 1", isActive: true)

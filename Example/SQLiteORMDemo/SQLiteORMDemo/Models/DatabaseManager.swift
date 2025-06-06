@@ -81,7 +81,7 @@ class DatabaseManager: ObservableObject {
               let itemRepository = itemRepository else { return }
         
         // Subscribe to all active lists
-        listSubscription = await listRepository.subscribe(
+        listSubscription = listRepository.subscribe(
             query: ORMQueryBuilder<ShoppingList>()
                 .where("isActive", .equal, true)
                 .orderBy("createdAt", ascending: false)
@@ -101,7 +101,7 @@ class DatabaseManager: ObservableObject {
             .store(in: &cancellables)
         
         // Subscribe to all items
-        itemSubscription = await itemRepository.subscribe(
+        itemSubscription = itemRepository.subscribe(
             query: ORMQueryBuilder<ShoppingItem>()
                 .orderBy("addedAt", ascending: false)
         )
