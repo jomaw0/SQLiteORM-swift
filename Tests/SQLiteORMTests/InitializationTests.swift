@@ -7,7 +7,7 @@ struct InitializationTests {
     
     @Test("Default initialization works")
     func testDefaultInitialization() async throws {
-        let orm = ORM()
+        let orm = ORM(.test("default_test_\(UUID().uuidString)"))
         
         let openResult = await orm.open()
         #expect(openResult.toOptional() != nil)
@@ -21,7 +21,7 @@ struct InitializationTests {
     
     @Test("Relative path initialization works")
     func testRelativePathInitialization() async throws {
-        let orm = ORM(.relative("test_database"))
+        let orm = ORM(.test("test_database_\(UUID().uuidString)"))
         
         let openResult = await orm.open()
         #expect(openResult.toOptional() != nil)
@@ -63,7 +63,7 @@ struct InitializationTests {
     
     @Test("File convenience function initialization works")
     func testFileConvenienceFunctionInitialization() async throws {
-        let orm = createFileORM(filename: "test_app")
+        let orm = createTestORM(filename: "test_app_\(UUID().uuidString)")
         
         let openResult = await orm.open()
         #expect(openResult.toOptional() != nil)
@@ -78,8 +78,9 @@ struct InitializationTests {
     @Test("SQLite extension is automatically added")
     func testSQLiteExtensionAutomatic() async throws {
         // Test that .sqlite extension is added automatically
-        let orm1 = ORM(.relative("test_without_extension"))
-        let orm2 = ORM(.relative("test_with_extension.sqlite"))
+        let uuid = UUID().uuidString
+        let orm1 = ORM(.test("test_without_extension_\(uuid)"))
+        let orm2 = ORM(.test("test_with_extension_\(uuid).sqlite"))
         
         // Both should work the same way
         let openResult1 = await orm1.open()
@@ -156,7 +157,7 @@ struct InitializationTests {
         }
         
         // Test file-based convenience function
-        let fileORMResult = await createFileORMWithTables("test_convenience", User.self)
+        let fileORMResult = await createTestORMWithTables("test_convenience_\(UUID().uuidString)", User.self)
         #expect(fileORMResult.toOptional() != nil)
         
         if case .success(let orm) = fileORMResult {

@@ -8,7 +8,7 @@ public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<[T]> = .success([])
     
     private let repository: Repository<T>
-    private let query: QueryBuilder<T>?
+    private let query: ORMQueryBuilder<T>?
     private let changeNotifier: ChangeNotifier
     private var cancellable: AnyCancellable?
     
@@ -17,7 +17,7 @@ public final class SimpleQuerySubscription<T: ORMTable>: ObservableObject {
     ///   - repository: The repository to query
     ///   - query: Optional query builder to filter results
     ///   - changeNotifier: The change notification system
-    public nonisolated init(repository: Repository<T>, query: QueryBuilder<T>?, changeNotifier: ChangeNotifier) {
+    public nonisolated init(repository: Repository<T>, query: ORMQueryBuilder<T>?, changeNotifier: ChangeNotifier) {
         self.repository = repository
         self.query = query
         self.changeNotifier = changeNotifier
@@ -60,7 +60,7 @@ public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject 
     @Published public private(set) var result: ORMResult<T?> = .success(nil)
     
     private let repository: Repository<T>
-    private let query: QueryBuilder<T>
+    private let query: ORMQueryBuilder<T>
     private let changeNotifier: ChangeNotifier
     private var cancellable: AnyCancellable?
     
@@ -69,7 +69,7 @@ public final class SimpleSingleQuerySubscription<T: ORMTable>: ObservableObject 
     ///   - repository: The repository to query
     ///   - query: Query builder to find the model
     ///   - changeNotifier: The change notification system
-    public nonisolated init(repository: Repository<T>, query: QueryBuilder<T>, changeNotifier: ChangeNotifier) {
+    public nonisolated init(repository: Repository<T>, query: ORMQueryBuilder<T>, changeNotifier: ChangeNotifier) {
         self.repository = repository
         self.query = query
         self.changeNotifier = changeNotifier
@@ -112,7 +112,7 @@ public final class SimpleCountSubscription<T: ORMTable>: ObservableObject {
     @Published public private(set) var result: ORMResult<Int> = .success(0)
     
     private let repository: Repository<T>
-    private let query: QueryBuilder<T>?
+    private let query: ORMQueryBuilder<T>?
     private let changeNotifier: ChangeNotifier
     private var cancellable: AnyCancellable?
     
@@ -121,7 +121,7 @@ public final class SimpleCountSubscription<T: ORMTable>: ObservableObject {
     ///   - repository: The repository to query
     ///   - query: Optional query builder to filter the count
     ///   - changeNotifier: The change notification system
-    public nonisolated init(repository: Repository<T>, query: QueryBuilder<T>?, changeNotifier: ChangeNotifier) {
+    public nonisolated init(repository: Repository<T>, query: ORMQueryBuilder<T>?, changeNotifier: ChangeNotifier) {
         self.repository = repository
         self.query = query
         self.changeNotifier = changeNotifier

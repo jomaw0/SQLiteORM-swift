@@ -9,6 +9,8 @@ public enum DatabasePath {
     case memory
     /// Default database in documents directory with name "app.sqlite"
     case `default`
+    /// Test database in package directory's hidden .test-data folder
+    case test(String)
     
     /// Returns the resolved absolute path for the database
     var resolvedPath: String {
@@ -26,6 +28,29 @@ public enum DatabasePath {
                                                                    .userDomainMask, 
                                                                    true).first!
             return "\(documentsPath)/app.sqlite"
+        case .test(let name):
+            // Find the package root by looking for Package.swift
+            let currentPath = FileManager.default.currentDirectoryPath
+            var packageRoot = currentPath
+            
+            // Traverse up to find Package.swift
+            while !FileManager.default.fileExists(atPath: "\(packageRoot)/Package.swift") {
+                let parentPath = URL(fileURLWithPath: packageRoot).deletingLastPathComponent().path
+                if parentPath == packageRoot {
+                    // Reached filesystem root without finding Package.swift, fallback to current directory
+                    packageRoot = currentPath
+                    break
+                }
+                packageRoot = parentPath
+            }
+            
+            let testDataDir = "\(packageRoot)/.test-data"
+            
+            // Create test data directory if it doesn't exist
+            try? FileManager.default.createDirectory(atPath: testDataDir, withIntermediateDirectories: true)
+            
+            let filename = name.hasSuffix(".sqlite") ? name : "\(name).sqlite"
+            return "\(testDataDir)/\(filename)"
         }
     }
 }
@@ -263,6 +288,15 @@ public func createFileORM(filename: String, enableDiskStorage: Bool = true) -> O
     ORM(.relative(filename), enableDiskStorage: enableDiskStorage)
 }
 
+/// Create a new ORM instance with test database in package's hidden .test-data directory
+/// - Parameters:
+///   - filename: Database filename (will auto-add .sqlite extension if needed)
+///   - enableDiskStorage: Whether to enable disk storage for large objects
+/// - Returns: Configured ORM instance for testing
+public func createTestORM(filename: String, enableDiskStorage: Bool = true) -> ORM {
+    ORM(.test(filename), enableDiskStorage: enableDiskStorage)
+}
+
 
 /// Create a new ORM instance and set up tables in one step (in-memory)
 /// - Parameter models: Variable number of model types to create tables for
@@ -297,6 +331,29 @@ public func createInMemoryORMWithTables(_ models: any ORMTable.Type...) async ->
 /// ```
 public func createFileORMWithTables(_ filename: String, enableDiskStorage: Bool = true, _ models: any ORMTable.Type...) async -> ORMResult<ORM> {
     let orm = createFileORM(filename: filename, enableDiskStorage: enableDiskStorage)
+    let result = await orm.openAndCreateTables(for: models)
+    
+    switch result {
+    case .success:
+        return .success(orm)
+    case .failure(let error):
+        return .failure(error)
+    }
+}
+
+/// Create a new ORM instance and set up tables in one step (test database)
+/// - Parameters:
+///   - filename: Database filename (will auto-add .sqlite extension if needed)
+///   - enableDiskStorage: Whether to enable disk storage for large objects
+///   - models: Variable number of model types to create tables for
+/// - Returns: Configured and ready-to-use ORM instance for testing
+/// 
+/// Example usage:
+/// ```swift
+/// let orm = await createTestORMWithTables("test_db", User.self, Post.self)
+/// ```
+public func createTestORMWithTables(_ filename: String, enableDiskStorage: Bool = true, _ models: any ORMTable.Type...) async -> ORMResult<ORM> {
+    let orm = createTestORM(filename: filename, enableDiskStorage: enableDiskStorage)
     let result = await orm.openAndCreateTables(for: models)
     
     switch result {

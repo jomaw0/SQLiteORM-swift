@@ -344,7 +344,7 @@ extension Repository {
     /// Subscribe to changes for models matching a specific query
     /// - Parameter query: The query builder to filter results
     /// - Returns: An observable object that provides updated query results when data changes
-    public nonisolated func subscribe(query: QueryBuilder<T>) -> SimpleQuerySubscription<T> {
+    public nonisolated func subscribe(query: ORMQueryBuilder<T>) -> SimpleQuerySubscription<T> {
         return SimpleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
     
@@ -352,21 +352,21 @@ extension Repository {
     /// - Parameter id: The ID of the model to monitor
     /// - Returns: An observable object that provides the updated model when it changes
     public nonisolated func subscribe(id: T.IDType) -> SimpleSingleQuerySubscription<T> {
-        let query = QueryBuilder<T>().where("id", .equal, id as? SQLiteConvertible)
+        let query = ORMQueryBuilder<T>().where("id", .equal, id as? SQLiteConvertible)
         return SimpleSingleQuerySubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
     
     /// Subscribe to changes for the first model matching a query
     /// - Parameter query: The query builder to find the model
     /// - Returns: An observable object that provides the updated model when it changes
-    public nonisolated func subscribeFirst(query: QueryBuilder<T>) -> SimpleSingleQuerySubscription<T> {
+    public nonisolated func subscribeFirst(query: ORMQueryBuilder<T>) -> SimpleSingleQuerySubscription<T> {
         return SimpleSingleQuerySubscription(repository: self, query: query.limit(1), changeNotifier: changeNotifier)
     }
     
     /// Subscribe to the count of models matching a query
     /// - Parameter query: Optional query builder to filter the count
     /// - Returns: An observable object that provides updated count when data changes
-    public nonisolated func subscribeCount(query: QueryBuilder<T>? = nil) -> SimpleCountSubscription<T> {
+    public nonisolated func subscribeCount(query: ORMQueryBuilder<T>? = nil) -> SimpleCountSubscription<T> {
         return SimpleCountSubscription(repository: self, query: query, changeNotifier: changeNotifier)
     }
 }
