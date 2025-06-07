@@ -77,6 +77,9 @@ public actor ORM {
     /// Relationship manager for lazy loading
     private var relationshipManager: RelationshipManager?
     
+    /// Model limit manager for enforcing storage limits
+    public let modelLimitManager: ModelLimitManager
+    
     /// Initialize ORM with default database name in documents directory
     /// - Parameters:
     ///   - configuration: Database configuration
@@ -99,6 +102,13 @@ public actor ORM {
         
         // Relationship manager will be initialized on first use
         self.relationshipManager = nil
+        
+        // Initialize model limit manager
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            self.modelLimitManager = ModelLimitManager(database: database, diskStorageManager: diskStorageManager, changeNotifier: changeNotifier)
+        } else {
+            self.modelLimitManager = ModelLimitManager(database: database, diskStorageManager: diskStorageManager, changeNotifier: nil)
+        }
     }
     
     /// Initialize ORM with database path configuration
@@ -124,6 +134,13 @@ public actor ORM {
         
         // Relationship manager will be initialized on first use
         self.relationshipManager = nil
+        
+        // Initialize model limit manager
+        if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
+            self.modelLimitManager = ModelLimitManager(database: database, diskStorageManager: diskStorageManager, changeNotifier: changeNotifier)
+        } else {
+            self.modelLimitManager = ModelLimitManager(database: database, diskStorageManager: diskStorageManager, changeNotifier: nil)
+        }
     }
     
     
@@ -163,10 +180,10 @@ public actor ORM {
         let relManager = getRelationshipManager()
         let repository: Repository<T>
         if #available(macOS 13.0, iOS 16.0, tvOS 16.0, watchOS 9.0, *) {
-            repository = Repository<T>(database: database, changeNotifier: changeNotifier, diskStorageManager: diskStorageManager, relationshipManager: relManager)
+            repository = Repository<T>(database: database, changeNotifier: changeNotifier, diskStorageManager: diskStorageManager, relationshipManager: relManager, modelLimitManager: modelLimitManager)
         } else {
             // For older platforms, create a dummy change notifier
-            repository = Repository<T>(database: database, changeNotifier: ChangeNotifier(), diskStorageManager: diskStorageManager, relationshipManager: relManager)
+            repository = Repository<T>(database: database, changeNotifier: ChangeNotifier(), diskStorageManager: diskStorageManager, relationshipManager: relManager, modelLimitManager: modelLimitManager)
         }
         repositories[key] = repository
         return repository
@@ -620,6 +637,74 @@ public actor ORM {
         ]
         
         return .success(result)
+    }
+    
+    // MARK: - Model Limit Management
+    
+    /// Configure model limit for a specific model type
+    /// - Parameters:
+    ///   - modelType: The model type to configure
+    ///   - limit: The model limit configuration
+    public func setModelLimit<T: ORMTable>(for modelType: T.Type, limit: ModelLimit) async {
+        await modelLimitManager.setModelLimit(for: modelType, limit: limit)
+    }
+    
+    /// Get model limit configuration for a specific model type
+    /// - Parameter modelType: The model type
+    /// - Returns: Model limit configuration or nil if not set
+    public func getModelLimit<T: ORMTable>(for modelType: T.Type) async -> ModelLimit? {
+        return await modelLimitManager.getModelLimit(for: modelType)
+    }
+    
+    /// Remove model limit configuration for a specific model type
+    /// - Parameter modelType: The model type
+    public func removeModelLimit<T: ORMTable>(for modelType: T.Type) async {
+        await modelLimitManager.removeModelLimit(for: modelType)
+    }
+    
+    /// Manually enforce model limits for a specific model type
+    /// - Parameter modelType: The model type
+    /// - Returns: Result indicating success or failure
+    public func enforceLimits<T: ORMTable>(for modelType: T.Type) async -> ORMResult<Void> {
+        return await modelLimitManager.enforceLimits(for: modelType)
+    }
+    
+    /// Get statistics about all configured model limits
+    /// - Returns: Dictionary of table names to their statistics
+    public func getModelLimitStatistics() async -> [String: ModelLimitStatistics] {
+        return await modelLimitManager.getStatistics()
+    }
+    
+    /// Cleanup access tracking data for better memory management
+    /// - Parameter olderThan: Time interval to consider entries as old (default: 30 days)
+    public func cleanupAccessTracking(olderThan timeInterval: TimeInterval = 30 * 24 * 60 * 60) async {
+        await modelLimitManager.cleanupAccessTracking(olderThan: timeInterval)
+    }
+    
+    /// Set global removal callback for all model types
+    /// - Parameter callback: Callback to execute when models are removed due to limits
+    public func setGlobalModelRemovalCallback(_ callback: ModelRemovalCallback?) async {
+        await modelLimitManager.setGlobalRemovalCallback(callback)
+    }
+    
+    /// Set removal callback for a specific model type
+    /// - Parameters:
+    ///   - modelType: The model type
+    ///   - callback: Callback to execute when models of this type are removed due to limits
+    public func setModelRemovalCallback<T: ORMTable>(for modelType: T.Type, callback: ModelRemovalCallback?) async {
+        await modelLimitManager.setRemovalCallback(for: modelType, callback: callback)
+    }
+    
+    /// Manually enforce model limits for a specific model type
+    /// - Parameters:
+    ///   - modelType: The model type
+    ///   - reason: The reason for enforcement
+    /// - Returns: Result indicating success or failure
+    public func manuallyEnforceLimits<T: ORMTable>(
+        for modelType: T.Type,
+        reason: ModelRemovalReason = .manualEnforcement
+    ) async -> ORMResult<Void> {
+        return await modelLimitManager.manuallyEnforceLimits(for: modelType, reason: reason)
     }
 }
 

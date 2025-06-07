@@ -19,6 +19,7 @@ A modern, type-safe SQLite ORM for Swift with zero external dependencies.
 - 🎨 **Clean API** - modern ORM-prefixed naming convention
 - ⚡ **Protocol conformances** - automatic `Identifiable`, `Hashable`, and `Codable` support with generic property-based implementations
 - 🌐 **Advanced Sync Features** - individual model sync, multi-model coordination, and KeyPath-based container extraction
+- 📊 **Model Limits** - automatic storage management with configurable removal strategies (FIFO, LRU, MRU, Random)
 
 ## Installation
 
@@ -949,6 +950,353 @@ if let fileURL = Bundle.main.url(forResource: "users", withExtension: "json"),
 - **Batch Processing**: Efficient handling of large datasets
 - **Two-Way Sync**: Upload local changes and download server updates
 - **Type Safe**: Full Swift type safety with Result-based error handling
+
+## Model Limits & Storage Management
+
+SwiftSync provides powerful model limit functionality to automatically manage storage by limiting the number of saved models and removing excess data using configurable strategies. This is perfect for apps like news readers, social media feeds, or any application that accumulates data over time.
+
+### Quick Start
+
+```swift
+// Configure a limit for news articles - keep only 100 most recent
+let newsLimit = ModelLimit(
+    maxCount: 100,
+    removalStrategy: .fifo,  // First In, First Out
+    enabled: true,
+    batchSize: 10  // Remove 10 at a time when limit exceeded
+)
+
+// Apply the limit to your model
+await orm.setModelLimit(for: NewsArticle.self, limit: newsLimit)
+
+// Now insertions automatically enforce the limit
+let repository = orm.repository(for: NewsArticle.self)
+var article = NewsArticle(title: "Breaking News", content: "...", publishedAt: Date())
+await repository.insert(&article)  // Automatically removes old articles if needed
+```
+
+### Removal Strategies
+
+SwiftSync supports multiple strategies for removing excess models:
+
+```swift
+// FIFO - Remove oldest models first (by creation time or ID)
+let fifoLimit = ModelLimit(maxCount: 100, removalStrategy: .fifo)
+
+// LIFO - Remove newest models first  
+let lifoLimit = ModelLimit(maxCount: 100, removalStrategy: .lifo)
+
+// LRU - Remove least recently accessed models
+let lruLimit = ModelLimit(maxCount: 100, removalStrategy: .lru)
+
+// MRU - Remove most recently accessed models
+let mruLimit = ModelLimit(maxCount: 100, removalStrategy: .mru)
+
+// Random - Remove random models
+let randomLimit = ModelLimit(maxCount: 100, removalStrategy: .random)
+
+// Smallest First - Remove models with smallest ID values
+let smallestLimit = ModelLimit(maxCount: 100, removalStrategy: .smallestFirst)
+
+// Largest First - Remove models with largest ID values  
+let largestLimit = ModelLimit(maxCount: 100, removalStrategy: .largestFirst)
+```
+
+### Real-World Examples
+
+#### News App with FIFO Strategy
+```swift
+// Keep only the 50 most recent news articles
+await orm.setModelLimit(
+    for: NewsArticle.self, 
+    limit: ModelLimit(maxCount: 50, removalStrategy: .fifo)
+)
+
+// As new articles are inserted, old ones are automatically removed
+let repository = orm.repository(for: NewsArticle.self)
+for i in 1...60 {
+    var article = NewsArticle(
+        title: "News #\(i)",
+        content: "Content...",
+        publishedAt: Date().addingTimeInterval(TimeInterval(i * 60))
+    )
+    await repository.insert(&article)
+}
+
+// Only the 50 most recent articles remain
+let count = await repository.count()  // Returns 50
+```
+
+#### Social Media Feed with LRU Strategy
+```swift
+// Keep 200 posts, removing least recently viewed ones
+await orm.setModelLimit(
+    for: Post.self,
+    limit: ModelLimit(maxCount: 200, removalStrategy: .lru)
+)
+
+let repository = orm.repository(for: Post.self)
+
+// When users view posts, they're automatically tracked for LRU
+let post = await repository.find(id: 123)  // Marks as recently accessed
+
+// When limit is exceeded, least recently viewed posts are removed
+```
+
+#### Cache Management with Manual Control
+```swift
+// Configure limit but disable automatic enforcement
+let cacheLimit = ModelLimit(
+    maxCount: 1000,
+    removalStrategy: .random,
+    enabled: false  // Manual control
+)
+
+await orm.setModelLimit(for: CacheItem.self, limit: cacheLimit)
+
+// Manually enforce limits when needed
+let repository = orm.repository(for: CacheItem.self)
+let result = await repository.enforceLimits()
+
+switch result {
+case .success:
+    print("✅ Cache cleanup completed")
+case .failure(let error):
+    print("❌ Cache cleanup failed: \(error)")
+}
+```
+
+### Repository-Level Management
+
+Each repository provides convenient methods for managing model limits:
+
+```swift
+let repository = orm.repository(for: NewsArticle.self)
+
+// Configure limit for this specific model type
+await repository.setModelLimit(
+    ModelLimit(maxCount: 100, removalStrategy: .fifo)
+)
+
+// Get current limit configuration
+if let limit = await repository.getModelLimit() {
+    print("Max count: \(limit.maxCount)")
+    print("Strategy: \(limit.removalStrategy)")
+    print("Enabled: \(limit.enabled)")
+}
+
+// Get statistics about current usage
+if let stats = await repository.getModelLimitStatistics() {
+    print("Current: \(stats.currentCount)/\(stats.maxCount)")
+    print("Utilization: \(stats.utilizationPercentage)%")
+    print("Approaching limit: \(stats.isApproachingLimit)")
+    print("Exceeded limit: \(stats.hasExceededLimit)")
+}
+
+// Manually enforce limits
+await repository.enforceLimits()
+
+// Remove limit configuration
+await repository.removeModelLimit()
+```
+
+### Global Management
+
+Manage model limits across all your model types:
+
+```swift
+// Get statistics for all configured limits
+let allStats = await orm.getModelLimitStatistics()
+for (tableName, stats) in allStats {
+    print("\(tableName): \(stats.currentCount)/\(stats.maxCount)")
+    if stats.isApproachingLimit {
+        print("⚠️ \(tableName) is approaching its limit")
+    }
+}
+
+// Cleanup access tracking data (for LRU/MRU strategies)
+await orm.cleanupAccessTracking(olderThan: 30 * 24 * 60 * 60) // 30 days
+
+// Remove all model limit configurations
+await orm.removeModelLimit(for: NewsArticle.self)
+await orm.removeModelLimit(for: Post.self)
+```
+
+### Advanced Configuration
+
+```swift
+// Custom batch size for removal operations
+let customLimit = ModelLimit(
+    maxCount: 500,
+    removalStrategy: .fifo,
+    enabled: true,
+    batchSize: 50  // Remove 50 items at once when limit exceeded
+)
+
+// Temporarily disable limits
+let disabledLimit = ModelLimit(
+    maxCount: 100,
+    removalStrategy: .lru,
+    enabled: false  // Limit configured but not enforced
+)
+
+// Use ModelLimit.disabled for no limits
+await orm.setModelLimit(for: ImportantData.self, limit: .disabled)
+```
+
+### Best Practices
+
+#### Choose the Right Strategy
+- **FIFO**: News articles, logs, time-series data
+- **LRU**: Cached content, user-accessed data, media files  
+- **Random**: When access patterns don't matter
+- **LIFO**: Undo stacks, recent items priority
+- **Smallest/Largest First**: When ID ordering matters
+
+#### Performance Considerations
+```swift
+// Use appropriate batch sizes for your data volume
+let highVolumeLimit = ModelLimit(
+    maxCount: 10000,
+    removalStrategy: .fifo,
+    batchSize: 1000  // Remove 1000 at once for efficiency
+)
+
+// For frequently accessed data, use larger limits with LRU
+let frequentAccessLimit = ModelLimit(
+    maxCount: 5000,
+    removalStrategy: .lru,
+    batchSize: 500
+)
+```
+
+#### Error Handling
+```swift
+let result = await repository.enforceLimits()
+switch result {
+case .success:
+    print("✅ Limits enforced successfully")
+case .failure(let error):
+    print("❌ Failed to enforce limits: \(error)")
+    // Handle error appropriately - maybe retry or alert user
+}
+```
+
+### Removal Callbacks & Combine Integration
+
+SwiftSync provides powerful callback support and automatic Combine notifications when models are removed due to limits:
+
+```swift
+// Global callback for all model removals
+await orm.setGlobalModelRemovalCallback { removalInfo in
+    print("🗑️ Removed \(removalInfo.removedCount) items from \(removalInfo.tableName)")
+    print("Reason: \(removalInfo.reason)")
+    print("Strategy: \(removalInfo.removalStrategy)")
+    
+    // Send analytics, show notifications, etc.
+    Analytics.track("models_removed", properties: [
+        "table": removalInfo.tableName,
+        "count": removalInfo.removedCount,
+        "reason": removalInfo.reason.rawValue
+    ])
+}
+
+// Model-specific callback
+let repository = orm.repository(for: NewsArticle.self)
+await repository.setModelRemovalCallback { removalInfo in
+    print("📰 \(removalInfo.removedCount) articles removed")
+    
+    // Update UI, show toast, etc.
+    if removalInfo.reason == .limitExceeded {
+        NotificationCenter.default.post(name: .articlesRemovedDueToLimit, object: removalInfo)
+    }
+}
+
+// Combine subscribers are automatically notified
+let subscription = await repository.subscribe()
+    .sink { articles in
+        // This will be called when articles are removed due to limits
+        print("UI Update: Now showing \(articles.count) articles")
+    }
+```
+
+#### Removal Reasons
+
+The system provides detailed reasons for why models were removed:
+
+```swift
+public enum ModelRemovalReason {
+    case limitExceeded      // Automatic removal due to exceeding maxCount
+    case manualEnforcement  // Manual cleanup triggered by user
+    case strategyChange     // Cleanup during strategy changes
+    case cleanup           // General cleanup operations
+}
+```
+
+#### Combine Integration
+
+All model removals automatically trigger Combine notifications, ensuring your UI stays synchronized:
+
+```swift
+// Set up Combine subscriptions
+let articlesSubscription = await repository.subscribe()
+let countSubscription = await repository.subscribeCount()
+
+// Configure limits - subscribers will be notified of changes
+await repository.setModelLimit(
+    ModelLimit(maxCount: 50, removalStrategy: .fifo)
+)
+
+// Insert articles - when limits are exceeded:
+// 1. Old articles are removed
+// 2. Removal callbacks are executed  
+// 3. Combine subscribers are notified
+// 4. UI automatically updates
+for i in 1...60 {
+    var article = NewsArticle(title: "Article \(i)", ...)
+    await repository.insert(&article)
+}
+```
+
+### Optional Enforcement
+
+Model limits are completely optional and can be configured per table:
+
+```swift
+// Enable automatic enforcement
+let enabledLimit = ModelLimit(maxCount: 100, removalStrategy: .fifo, enabled: true)
+
+// Configure but disable automatic enforcement (manual only)
+let disabledLimit = ModelLimit(maxCount: 100, removalStrategy: .lru, enabled: false)
+
+// No limits at all
+await orm.setModelLimit(for: SomeModel.self, limit: .disabled)
+
+// Check if limits are configured
+if let limit = await repository.getModelLimit() {
+    if limit.enabled {
+        print("Automatic enforcement enabled")
+    } else {
+        print("Manual enforcement only")
+    }
+} else {
+    print("No limits configured")
+}
+```
+
+### Key Features
+
+- **Automatic Enforcement**: Limits are enforced automatically on insert operations
+- **Multiple Strategies**: FIFO, LRU, MRU, Random, and ID-based removal strategies
+- **Access Tracking**: Automatic tracking for LRU/MRU strategies with minimal overhead
+- **Statistics & Monitoring**: Detailed statistics about usage and limit status
+- **Manual Control**: Option to disable automatic enforcement and trigger manually
+- **Removal Callbacks**: Rich callback system with detailed removal information
+- **Combine Integration**: Automatic notifications to Combine subscribers
+- **Optional**: Completely optional - can be enabled/disabled per table
+- **Memory Efficient**: Access tracking cleanup prevents memory bloat
+- **Type Safe**: Full Swift type safety with Result-based error handling
+- **Thread Safe**: Actor-based implementation ensures safe concurrent access
 
 ## Combine Integration (iOS 16.0+)
 

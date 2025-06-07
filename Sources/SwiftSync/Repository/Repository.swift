@@ -22,17 +22,22 @@ public actor Repository<T: ORMTable> {
     /// Optional relationship manager for lazy loading
     private let relationshipManager: RelationshipManager?
     
+    /// Model limit manager for enforcing storage limits
+    private let modelLimitManager: ModelLimitManager
+    
     /// Initialize a new repository
     /// - Parameters:
     ///   - database: The database connection to use
     ///   - changeNotifier: The change notification system
     ///   - diskStorageManager: Optional disk storage manager for large objects
     ///   - relationshipManager: Optional relationship manager for lazy loading
-    public init(database: SQLiteDatabase, changeNotifier: ChangeNotifier, diskStorageManager: DiskStorageManager? = nil, relationshipManager: RelationshipManager? = nil) {
+    ///   - modelLimitManager: Model limit manager for enforcing storage limits
+    public init(database: SQLiteDatabase, changeNotifier: ChangeNotifier, diskStorageManager: DiskStorageManager? = nil, relationshipManager: RelationshipManager? = nil, modelLimitManager: ModelLimitManager) {
         self.database = database
         self.changeNotifier = changeNotifier
         self.diskStorageManager = diskStorageManager
         self.relationshipManager = relationshipManager
+        self.modelLimitManager = modelLimitManager
     }
     
     /// Find a model by its ID
@@ -55,6 +60,10 @@ public actor Repository<T: ORMTable> {
             do {
                 var model = try decoder.decode(T.self, from: row)
                 try await loadDiskStoredProperties(for: &model, from: row)
+                
+                // Track access for LRU/MRU strategies
+                await modelLimitManager.trackAccess(for: T.self, id: model.id)
+                
                 return .success(model)
             } catch {
                 return .failure(.invalidData(reason: error.localizedDescription))
@@ -81,6 +90,10 @@ public actor Repository<T: ORMTable> {
                 for row in rows {
                     var model = try decoder.decode(T.self, from: row)
                     try await loadDiskStoredProperties(for: &model, from: row)
+                    
+                    // Track access for LRU/MRU strategies
+                    await modelLimitManager.trackAccess(for: T.self, id: model.id)
+                    
                     models.append(model)
                 }
                 
@@ -159,6 +172,13 @@ public actor Repository<T: ORMTable> {
                     
                     // Notify subscribers of the change
                     await changeNotifier.notifyChange(for: T.tableName)
+                    
+                    // Enforce model limits after successful insertion
+                    let limitResult = await modelLimitManager.enforceLimits(for: T.self)
+                    if case .failure(let limitError) = limitResult {
+                        // Log the error but don't fail the insert operation
+                        print("Warning: Failed to enforce model limits for \(T.tableName): \(limitError)")
+                    }
                     
                     return .success(processedModel)
                 } else {
@@ -493,7 +513,8 @@ extension Repository {
             database: database,
             changeNotifier: changeNotifier,
             diskStorageManager: diskStorageManager,
-            relationshipManager: relationshipManager
+            relationshipManager: relationshipManager,
+            modelLimitManager: modelLimitManager
         )
         let query = ORMQueryBuilder<Related>().where(foreignKey, .equal, value)
         return QuerySubscription(repository: relatedRepository, query: query, changeNotifier: changeNotifier)
@@ -530,7 +551,8 @@ extension Repository {
             database: database,
             changeNotifier: changeNotifier,
             diskStorageManager: diskStorageManager,
-            relationshipManager: relationshipManager
+            relationshipManager: relationshipManager,
+            modelLimitManager: modelLimitManager
         )
         let query = ORMQueryBuilder<Related>().where(foreignKey, .equal, parentId as! SQLiteConvertible)
         return CountSubscription(repository: relatedRepository, query: query, changeNotifier: changeNotifier)
@@ -650,7 +672,8 @@ extension Repository {
             database: database,
             changeNotifier: changeNotifier,
             diskStorageManager: diskStorageManager,
-            relationshipManager: relationshipManager
+            relationshipManager: relationshipManager,
+            modelLimitManager: modelLimitManager
         )
         
         let query = QueryBuilder<Related>()
@@ -674,7 +697,8 @@ extension Repository {
             database: database,
             changeNotifier: changeNotifier,
             diskStorageManager: diskStorageManager,
-            relationshipManager: relationshipManager
+            relationshipManager: relationshipManager,
+            modelLimitManager: modelLimitManager
         )
         
         let query = QueryBuilder<Related>()
@@ -683,6 +707,49 @@ extension Repository {
         
         let result = await relatedRepository.findAll(query: query)
         return result.map { $0.first }
+    }
+}
+
+// MARK: - Model Limit Management
+
+extension Repository {
+    
+    /// Configure model limit for this repository's model type
+    /// - Parameter limit: The model limit configuration
+    public func setModelLimit(_ limit: ModelLimit) async {
+        await modelLimitManager.setModelLimit(for: T.self, limit: limit)
+    }
+    
+    /// Get current model limit configuration for this repository's model type
+    /// - Returns: Model limit configuration or nil if not set
+    public func getModelLimit() async -> ModelLimit? {
+        return await modelLimitManager.getModelLimit(for: T.self)
+    }
+    
+    /// Remove model limit configuration for this repository's model type
+    public func removeModelLimit() async {
+        await modelLimitManager.removeModelLimit(for: T.self)
+    }
+    
+    /// Manually enforce model limits for this repository's model type
+    /// - Parameters:
+    ///   - reason: The reason for enforcement (default: manualEnforcement)
+    /// - Returns: Result indicating success or failure
+    public func enforceLimits(reason: ModelRemovalReason = .manualEnforcement) async -> ORMResult<Void> {
+        return await modelLimitManager.manuallyEnforceLimits(for: T.self, reason: reason)
+    }
+    
+    /// Get statistics about model limits for this repository's model type
+    /// - Returns: Model limit statistics or nil if no limit is configured
+    public func getModelLimitStatistics() async -> ModelLimitStatistics? {
+        let allStats = await modelLimitManager.getStatistics()
+        return allStats[T.tableName]
+    }
+    
+    /// Set removal callback for this repository's model type
+    /// - Parameter callback: Callback to execute when models are removed due to limits
+    public func setModelRemovalCallback(_ callback: ModelRemovalCallback?) async {
+        await modelLimitManager.setRemovalCallback(for: T.self, callback: callback)
     }
 }
 
