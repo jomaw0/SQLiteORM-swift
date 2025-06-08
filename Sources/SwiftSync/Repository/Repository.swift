@@ -291,6 +291,49 @@ public actor Repository<T: ORMTable> {
         }
     }
     
+    /// Delete all models in the table
+    /// - Returns: Result with number of rows deleted
+    public func deleteAll() async -> ORMResult<Int> {
+        let sql = "DELETE FROM \(T.tableName)"
+        let result = await database.execute(sql, bindings: [])
+        switch result {
+        case .success(let rowsAffected):
+            if rowsAffected > 0 {
+                // Notify subscribers of the change
+                await changeNotifier.notifyChange(for: T.tableName)
+            }
+            return .success(rowsAffected)
+        case .failure(let error):
+            return .failure(error)
+        }
+    }
+    
+    /// Insert or update a model based on its primary key
+    /// If a model with the same ID exists, it will be updated; otherwise, it will be inserted
+    /// - Parameter model: The model to upsert
+    /// - Returns: Result containing the upserted model
+    public func upsert(_ model: inout T) async -> ORMResult<T> {
+        // Check if model exists
+        let findResult = await find(id: model.id)
+        switch findResult {
+        case .success(let existingModel):
+            if existingModel != nil {
+                // Model exists, update it
+                return await update(model)
+            } else {
+                // Model doesn't exist, insert it
+                return await insert(&model)
+            }
+        case .failure(let error):
+            // If it's a not found error, try to insert
+            if case .notFound = error {
+                return await insert(&model)
+            }
+            // For other errors, return the error
+            return .failure(error)
+        }
+    }
+    
     /// Execute a raw SQL query
     /// - Parameters:
     ///   - sql: The SQL query
